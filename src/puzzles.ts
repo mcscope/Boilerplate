@@ -325,7 +325,7 @@ export const PUZZLES: Level[] = [
     build: b => {
       b.solid(52, 86, 108, 87); // plinth under the statue
       b.drain(1, 88, 158, 88);
-      b.faucet(30, 6, 4, 40, true, WAX, 0, 240);
+      b.faucet(30, 6, 4, 40, true, WAX, 0, 290);
     },
   },
 ];
