@@ -37,12 +37,12 @@ const SOLID_TOOL: Partial<Record<Tool, number>> = { wall: STONE, erase: NONE, ic
 
 /** Puzzles first, then the free-play playgrounds. */
 const ALL: Level[] = [...PUZZLES, ...LEVELS];
-/** Physics engine: ?physics=unified|classic in the URL wins, then the saved choice, then classic. */
+/** Physics engine: ?physics=unified|classic in the URL wins, then the saved choice, then unified (the default). */
 function initialPhysics(): Physics {
   const q = new URLSearchParams(location.search).get('physics');
   if (q === 'unified' || q === 'classic') return q;
-  try { if (localStorage.getItem('physics') === 'unified') return 'unified'; } catch { /* storage unavailable */ }
-  return 'classic';
+  try { if (localStorage.getItem('physics') === 'classic') return 'classic'; } catch { /* storage unavailable */ }
+  return 'unified';
 }
 let world = new World(initialPhysics());
 let levelIndex = 0;
@@ -72,8 +72,8 @@ document.querySelector('#app')!.innerHTML = `
     </div>
     <div class="group physics" role="group" aria-label="Physics engine">
       <span class="group-label">Physics:</span>
-      <button data-physics="classic" title="The original engine: liquid particles plus air pockets with uniform pressure">Classic</button>
-      <button data-physics="unified" title="Experimental: air and steam simulated as a real gas, one pressure solve for everything">Unified (beta)</button>
+      <button data-physics="classic" title="The original engine: liquid particles plus air pockets with uniform pressure">Classic (legacy)</button>
+      <button data-physics="unified" title="Air and steam simulated as a real gas, one pressure solve for everything">Unified</button>
     </div>
     <div id="stats"></div>
   </header>

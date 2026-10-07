@@ -133,7 +133,7 @@ export class World {
   playerMat = new Uint8Array(NX * NY);
   goal: GoalStatus = { amount: 0, purity: 0, silt: 0, temp: 0, met: false, held: 0, solved: false };
 
-  constructor(physics: Physics = 'classic') {
+  constructor(physics: Physics = 'unified') {
     this.physics = physics;
     const unified = physics === 'unified' ? new UnifiedFluid(NX, NY, CELL, MAX_PARTICLES) : null;
     this.unified = unified;
