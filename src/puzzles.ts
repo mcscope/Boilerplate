@@ -58,13 +58,13 @@ export const PUZZLES: Level[] = [
     name: '1b. Long Shot',
     desc: 'Same idea, but you can\'t build anywhere on the right half.',
     puzzle: {
-      goal: { zone: { i0: 112, j0: 56, i1: 128, j1: 84 }, kind: WATER, amount: 400, label: 'Fill the beaker with 400 water' },
+      goal: { zone: { i0: 100, j0: 56, i1: 125, j1: 84 }, kind: WATER, amount: 400, label: 'Fill the beaker with 400 water' },
       tools: { wall: Infinity },
       hint: 'A long steep drop builds speed. A ski-jump lip at the end throws the water up and across.',
       noBuild: [{ i0: 80, j0: 1, i1: 158, j1: 88 }],
     },
     build: b => {
-      b.solid(110, 56, 111, 86); b.solid(129, 56, 130, 86); b.solid(110, 85, 130, 86);
+      b.solid(98, 56, 99, 86); b.solid(126, 56, 127, 86); b.solid(98, 85, 127, 86);
       b.drain(1, 88, 158, 88);
       b.faucet(36, 6, 6, 140, true, WATER);
     },
