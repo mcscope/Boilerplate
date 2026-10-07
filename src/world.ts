@@ -49,11 +49,18 @@ export interface Goal {
 
 export interface Puzzle {
   goal: Goal;
+  /** Further goals that must all be met at the same time as `goal` (e.g. water in one beaker, oil in another). */
+  also?: Goal[];
   /** Tools the player may use, with budgets: cells for materials, seconds for Fire / Chill. */
   tools: Record<string, number>;
   hint: string;
   /** Areas where the player may not build. */
   noBuild?: Rect[];
+}
+
+/** All of a puzzle's goals, main one first. */
+export function puzzleGoals(p: Puzzle): Goal[] {
+  return [p.goal, ...(p.also ?? [])];
 }
 
 export interface GoalStatus {
@@ -133,7 +140,10 @@ export class World {
    * still hold what the player put there, not level terrain or anything physics made (settled mud, frozen ice).
    */
   playerMat = new Uint8Array(NX * NY);
+  /** Overall puzzle status: met when every goal is met; solved once they've all held together. */
   goal: GoalStatus = { amount: 0, purity: 0, silt: 0, temp: 0, met: false, held: 0, solved: false };
+  /** Status of each goal, in `puzzleGoals` order. */
+  goals: GoalStatus[] = [];
 
   constructor(physics: Physics = 'unified') {
     this.physics = physics;
@@ -165,6 +175,7 @@ export class World {
     this.playerMat.fill(NONE);
     this.fluid.refreshFields();
     this.goal = { amount: 0, purity: 0, silt: 0, temp: 0, met: false, held: 0, solved: false };
+    this.goals = level.puzzle ? puzzleGoals(level.puzzle).map(() => ({ ...this.goal })) : [];
     this.solidVersion++;
   }
 
@@ -269,17 +280,25 @@ export class World {
   }
 
   private updateGoal(dt: number) {
-    const goal = this.level?.puzzle?.goal;
-    if (!goal) return;
+    const p = this.level?.puzzle;
+    if (!p) return;
+    const goals = puzzleGoals(p);
+    goals.forEach((goal, n) => this.measureGoal(goal, this.goals[n]));
+    const g = this.goal;
+    Object.assign(g, { ...this.goals[0], held: g.held, solved: g.solved });
+    g.met = this.goals.every(s => s.met);
+    g.held = g.met ? g.held + dt : 0;
+    if (g.held >= HOLD_TO_WIN) g.solved = true;
+    for (const s of this.goals) { s.held = g.held; s.solved = g.solved; }
+  }
+
+  private measureGoal(goal: Goal, g: GoalStatus) {
     const f = this.fluid, z = goal.zone;
     if (goal.mud) {
       let mud = 0;
       for (let j = z.j0; j <= z.j1; j++) for (let i = z.i0; i <= z.i1; i++) if (this.thermo.mat[i + j * NX] === MUD) mud++;
-      const g = this.goal;
       g.amount = mud;
       g.met = mud >= goal.amount;
-      g.held = g.met ? g.held + dt : 0;
-      if (g.held >= HOLD_TO_WIN) g.solved = true;
       return;
     }
     let mine = 0, all = 0, silt = 0, temp = 0;
@@ -299,7 +318,6 @@ export class World {
         silt += this.sediment.deposit[c] + (this.thermo.mat[c] === MUD ? CELL_OF_MUD : 0);
       }
     }
-    const g = this.goal;
     g.amount = mine;
     g.purity = all ? mine / all : 0;
     g.silt = mine ? silt / mine : 0;
@@ -307,8 +325,6 @@ export class World {
     g.met = mine >= goal.amount && (goal.minPurity === undefined || g.purity >= goal.minPurity)
       && (goal.maxSilt === undefined || g.silt <= goal.maxSilt)
       && (goal.minTemp === undefined || g.temp >= goal.minTemp);
-    g.held = g.met ? g.held + dt : 0;
-    if (g.held >= HOLD_TO_WIN) g.solved = true;
   }
 
   /** Number of particles inside a cell rect: handy for goals and tests. */

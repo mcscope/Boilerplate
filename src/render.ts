@@ -1,7 +1,7 @@
 import { AIR } from './sim/fluid';
 import { HEATER, ICE, MUD, WAX_SOLID, WOOD, WOOD_FUEL } from './sim/thermo';
 import { GAS, P0, RHO_AIR, SOLID, T_AMBIENT, VAPOR_MOLAR_RATIO, saturatedVapor } from './sim2/types';
-import { CELL, H, NX, NY, W, World } from './world';
+import { CELL, Goal, GoalStatus, H, NX, NY, W, World, puzzleGoals } from './world';
 
 /** Vapor density of a cell of pure steam at 100 °C and atmospheric pressure: the "thick mist" reference. */
 /** Supersaturation that reads as fully opaque fog is VAPOR_REF * FOG_SCALE. */
@@ -291,7 +291,7 @@ export class Renderer {
 
     for (const e of world.emitters) this.drawFaucet(e.x, e.y, e.w, e.on);
     for (const d of world.drains) this.drawDrain(d.i0 * CELL, (d.j1 + 1) * CELL - 1, (d.i1 - d.i0 + 1) * CELL);
-    this.drawGoal(world);
+    this.drawGoals(world);
 
     // No-build zones: red diagonal hatching.
     for (const r of world.level?.puzzle?.noBuild ?? []) {
@@ -367,10 +367,14 @@ export class Renderer {
    * The goal, drawn in the world: a softly tinted target area with a dotted gold border, and a dashed fill line
    * with pennants at the height the water must reach. Green while the goal is met; sparkles once solved.
    */
-  private drawGoal(world: World) {
-    const goal = world.level?.puzzle?.goal;
-    if (!goal) return;
-    const out = this.img.data, z = goal.zone, st = world.goal;
+  private drawGoals(world: World) {
+    const p = world.level?.puzzle;
+    if (!p) return;
+    puzzleGoals(p).forEach((goal, n) => this.drawGoal(world, goal, world.goals[n] ?? world.goal));
+  }
+
+  private drawGoal(world: World, goal: Goal, st: GoalStatus) {
+    const out = this.img.data, z = goal.zone;
     const x0 = z.i0 * CELL, x1 = (z.i1 + 1) * CELL - 1, y0 = z.j0 * CELL, y1 = (z.j1 + 1) * CELL - 1;
     const gold: RGB = [255, 206, 84], green: RGB = [120, 240, 140];
     const col = st.met || st.solved ? green : gold;

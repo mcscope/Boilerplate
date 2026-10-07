@@ -4,7 +4,7 @@ import { OIL, WATER } from './sim/fluid';
 import { ICE, MUD, NONE, STONE, WAX_SOLID, WOOD } from './sim/thermo';
 import { PUZZLES } from './puzzles';
 import { brushIcon, installPixelUI, toolIcon } from './ui/pixel';
-import { H, LEVELS, Level, Physics, W, World } from './world';
+import { Goal, GoalStatus, H, LEVELS, Level, Physics, W, World, puzzleGoals } from './world';
 
 type Tool = 'wall' | 'erase' | 'water' | 'muddy' | 'oil' | 'mud' | 'wood' | 'ice' | 'wax' | 'steam' | 'fire' | 'chill' | 'sponge';
 
@@ -260,31 +260,42 @@ function allowed(t: Tool) {
 
 let lastChipHtml = '';
 
-function renderGoal() {
-  const p = ALL[levelIndex].puzzle, el = $('#goal');
-  if (!p) { el.innerHTML = ''; lastGoalHtml = ''; $('#chip').innerHTML = ''; lastChipHtml = ''; return; }
-  const g = world.goal, goal = p.goal;
-  const pct = Math.min(100, (g.amount / goal.amount) * 100);
+/** One goal's checks (purity, dirt, temperature) as HTML snippets. */
+function goalChecks(goal: Goal, g: GoalStatus) {
   const checks: string[] = [];
   if (goal.minPurity !== undefined) checks.push(`Purity <b class="${g.purity >= goal.minPurity ? 'ok' : 'bad'}">${Math.round(g.purity * 100)}%</b> (need ${Math.round(goal.minPurity * 100)}%)`);
   if (goal.maxSilt !== undefined) checks.push(`Dirt <b class="${g.silt <= goal.maxSilt ? 'ok' : 'bad'}">${Math.round(g.silt * 100)}%</b> (max ${Math.round(goal.maxSilt * 100)}%)`);
   if (goal.minTemp !== undefined) checks.push(`Temperature <b class="${g.temp >= goal.minTemp ? 'ok' : 'bad'}">${Math.round(g.temp)}°</b> (need ${goal.minTemp}°)`);
+  return checks;
+}
+
+function renderGoal() {
+  const p = ALL[levelIndex].puzzle, el = $('#goal');
+  if (!p) { el.innerHTML = ''; lastGoalHtml = ''; $('#chip').innerHTML = ''; lastChipHtml = ''; return; }
+  const all = puzzleGoals(p).map((goal, n) => {
+    const g = world.goals[n] ?? world.goal;
+    return { goal, g, pct: Math.min(100, (g.amount / goal.amount) * 100), checks: goalChecks(goal, g) };
+  });
+  const overall = world.goal;
   const next = levelIndex + 1 < PUZZLES.length ? `<button id="next">Next puzzle →</button>` : '';
   const html = `
-    <div class="goal-label">Goal: ${goal.label}</div>
+    ${all.map(({ goal, g, pct, checks }) => `
+      <div class="goal-label">${all.length > 1 ? (g.met ? '✓ ' : '') : 'Goal: '}${goal.label}</div>
+      <div class="meter"><i style="width:${pct}%"></i></div>
+      <div class="muted">${g.amount} / ${goal.amount}${checks.length ? ' · ' + checks.join(' · ') : ''}</div>`).join('')}
     ${(() => { const b = bestFor(ALL[levelIndex].name); return b ? `<div class="muted best">Your best: ${bestLabel(b)}</div>` : ''; })()}
-    <div class="meter"><i style="width:${pct}%"></i></div>
-    <div class="muted">${g.amount} / ${goal.amount}${checks.length ? ' · ' + checks.join(' · ') : ''}</div>
-    ${g.solved ? `<div class="solved">Solved! ${next}</div>` : g.met ? `<div class="muted">Holding… ${g.held.toFixed(1)}s</div>` : ''}
+    ${overall.solved ? `<div class="solved">Solved! ${next}</div>` : overall.met ? `<div class="muted">Holding… ${overall.held.toFixed(1)}s</div>` : ''}
     ${hintShown ? `<p class="muted hint">Hint: ${p.hint}</p>` : '<button id="hint">Show hint</button>'}
     ${paused && world.time === 0 ? `<p class="muted"><b>Build first, then press Play${matchMedia('(pointer: coarse)').matches ? '' : ' (Space)'}.</b></p>` : ''}`;
   // Only touch the DOM when something changed, so buttons in the panel don't get replaced mid-click.
   if (html !== lastGoalHtml) { el.innerHTML = html; lastGoalHtml = html; }
-  // The compact goal chip shown over the game on phones.
-  const bad = checks.filter(c => c.includes('class="bad"')).map(c => c.replace(/ \(.*\)$/, ''));
-  const chip = g.solved
+  // The compact goal chip shown over the game on phones: a meter per goal, plus any failing checks.
+  const chip = overall.solved
     ? `<b class="ok">✓ Solved</b>${next.replace('Next puzzle →', 'Next ▶')}`
-    : `<span class="meter"><i style="width:${pct}%"></i></span><span>${g.amount}/${goal.amount}</span>${bad.map(b => `<span>${b}</span>`).join('')}${g.met ? `<span>Holding ${g.held.toFixed(1)}s</span>` : ''}`;
+    : all.map(({ goal, g, pct, checks }) => {
+      const bad = checks.filter(c => c.includes('class="bad"')).map(c => c.replace(/ \(.*\)$/, ''));
+      return `<span class="meter"><i style="width:${pct}%"></i></span><span>${g.amount}/${goal.amount}</span>${bad.map(b => `<span>${b}</span>`).join('')}`;
+    }).join('') + (overall.met ? `<span>Holding ${overall.held.toFixed(1)}s</span>` : '');
   if (chip !== lastChipHtml) { $('#chip').innerHTML = chip; lastChipHtml = chip; }
 }
 

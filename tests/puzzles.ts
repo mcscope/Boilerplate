@@ -14,7 +14,7 @@
  * Solutions spend materials through world.paintSolid with the puzzle's budgets (only tools the puzzle grants),
  * and use Fire through thermo.applyTemperature, at most the puzzle's fire budget (seconds).
  */
-import { CELL, Level, World } from '../src/world';
+import { CELL, Level, World, puzzleGoals } from '../src/world';
 import { PUZZLES } from '../src/puzzles';
 import { STONE, WOOD } from '../src/sim/thermo';
 import { DT, Physics, RESULT_TAG, makeWorld, parseArgs, seedRandom, runParallel, table } from './lib';
@@ -194,12 +194,15 @@ function runJob(job: Job, physics: Physics): JobResult {
       if (w.goal.solved) break;
     }
   } catch (e) { error = `threw: ${(e as Error).message}`; }
-  const g = w.goal, goal = lvl.puzzle!.goal;
-  const parts = [`amount ${g.amount}/${goal.amount}`];
-  if (goal.minPurity !== undefined) parts.push(`purity ${g.purity.toFixed(2)}`);
-  if (goal.maxSilt !== undefined) parts.push(`silt ${g.silt.toFixed(3)}`);
-  if (goal.minTemp !== undefined) parts.push(`temp ${g.temp.toFixed(0)}`);
-  return { ...job, solved: g.solved, at: g.solved ? w.time : NaN, detail: parts.join(', '), wall: (performance.now() - t0) / 1000, error };
+  const parts = puzzleGoals(lvl.puzzle!).map((goal, n) => {
+    const g = w.goals[n] ?? w.goal;
+    const p = [`amount ${g.amount}/${goal.amount}`];
+    if (goal.minPurity !== undefined) p.push(`purity ${g.purity.toFixed(2)}`);
+    if (goal.maxSilt !== undefined) p.push(`silt ${g.silt.toFixed(3)}`);
+    if (goal.minTemp !== undefined) p.push(`temp ${g.temp.toFixed(0)}`);
+    return p.join(', ');
+  });
+  return { ...job, solved: w.goal.solved, at: w.goal.solved ? w.time : NaN, detail: parts.join(' | '), wall: (performance.now() - t0) / 1000, error };
 }
 
 function ok(r: JobResult) { return !r.error && r.solved === (r.expect === 'solve'); }

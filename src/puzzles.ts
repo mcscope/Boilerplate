@@ -150,22 +150,33 @@ export const PUZZLES: Level[] = [
   },
   {
     name: '4. Skimmer',
-    desc: 'Oil and water pour into a tank. Hold only oil in the marked area on the left.',
+    desc: 'Oil and water pour from the right. Hold only oil in the marked area on the left.',
     puzzle: {
       goal: { zone: { i0: 20, j0: 56, i1: 34, j1: 85 }, kind: OIL, amount: 150, minPurity: 0.85, label: '150 oil, at least 85% pure' },
       tools: { wall: Infinity },
-      hint: 'Oil floats. If the water had to climb before it could leave, the tank would fill, and the oil on top would spill over the left lip.',
+      hint: 'Oil floats on water. In a tank whose water can only leave from the bottom, the oil collects on top, and whatever spills over the rim is oil.',
+      noBuild: [{ i0: 55, j0: 0, i1: 66, j1: 12 }], // around the pipes
     },
     build: b => {
-      // Separator tank: low left wall with a lip (oil spills here), tall right wall with an outlet at the bottom.
-      b.solid(40, 46, 41, 80); b.solid(30, 46, 41, 46);
-      b.solid(79, 30, 80, 71); b.solid(40, 79, 120, 80);
-      // No oil beaker: the marked area under the lip is where your container has to hold the oil.
-      // Outlet channel to a drain.
-      b.drain(100, 78, 119, 78);
       b.drain(1, 88, 158, 88);
-      b.faucet(116, 6, 4, 100, true, WATER);
-      b.faucet(124, 6, 4, 100, true, OIL);
+      b.faucet(116, 6, 4, 50, true, WATER);
+      b.faucet(124, 6, 4, 50, true, OIL);
+    },
+  },
+  {
+    name: '4a. Separator',
+    desc: 'Oil and water pour together from one spout. Get the oil into the left area and the water into the right one.',
+    puzzle: {
+      goal: { zone: { i0: 14, j0: 62, i1: 32, j1: 85 }, kind: OIL, amount: 150, minPurity: 0.9, label: '150 oil on the left, 90% pure' },
+      also: [{ zone: { i0: 126, j0: 62, i1: 144, j1: 85 }, kind: WATER, amount: 250, minPurity: 0.95, label: '250 water on the right, 95% pure' }],
+      noBuild: [{ i0: 74, j0: 0, i1: 85, j1: 12 }], // around the pipes
+      tools: { wall: Infinity },
+      hint: 'Let the mixture settle in a tank first. Water is heavier, so it can be drawn off from the bottom while the oil leaves over the top.',
+    },
+    build: b => {
+      b.drain(1, 88, 158, 88);
+      b.faucet(154, 6, 4, 50, true, WATER);
+      b.faucet(160, 6, 4, 50, true, OIL);
     },
   },
   {
