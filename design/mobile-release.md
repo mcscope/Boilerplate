@@ -70,7 +70,7 @@ Either way: **no ads, no tracking.** That keeps privacy labels simple ("Data Not
   - A 15–30 second preview video. The grease fire and the dam bursting sell themselves.
   - Description and keywords
 - **Policies:** privacy policy page (one paragraph if nothing is collected), age rating questionnaire (fire is fine), support URL or email.
-- **Name check:** search trademarks and both stores for "Pressure Lab" before investing in branding.
+- **Name check:** search trademarks and both stores for "Boilerplate" before investing in branding.
 
 ## 6. Phases
 

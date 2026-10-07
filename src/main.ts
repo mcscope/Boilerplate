@@ -75,7 +75,7 @@ let drawPointer: number | null = null;
 installPixelUI();
 document.querySelector('#app')!.innerHTML = `
   <header>
-    <h1>PRESSURE LAB</h1>
+    <h1>BOILERPLATE</h1>
     <div class="group">
       <button id="pause"></button>
       <button id="step" title="Advance one frame (.)">Step</button>
@@ -145,7 +145,7 @@ document.querySelector('#app')!.innerHTML = `
       </section>
     </aside>
   </main>
-  <div id="rotate"><img class="icon" src="${toolIcon('water')}" alt=""><div>Turn your phone sideways</div><div class="muted">Pressure Lab plays in landscape.</div></div>`;
+  <div id="rotate"><img class="icon" src="${toolIcon('water')}" alt=""><div>Turn your phone sideways</div><div class="muted">Boilerplate plays in landscape.</div></div>`;
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
 const canvas = $<HTMLCanvasElement>('#view');

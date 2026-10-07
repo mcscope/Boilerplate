@@ -1,4 +1,4 @@
-# Deploying Pressure Lab
+# Deploying Boilerplate
 
 The game is a static site with no server-side code. `npm run package` builds it and wraps it as a drop-in
 **Flask blueprint**.
@@ -12,21 +12,21 @@ npm run package
 
 This produces:
 
-- `release/pressure_lab/`: a Python package (`__init__.py` + the built game in `game/`)
-- `release/pressure-lab.zip`: the same folder, zipped
+- `release/boilerplate/`: a Python package (`__init__.py` + the built game in `game/`)
+- `release/boilerplate.zip`: the same folder, zipped
 
 ## Add it to a Flask app (mcscope.com)
 
-1. Copy `release/pressure_lab/` into your Flask project, next to your app module (or unzip
-   `pressure-lab.zip` there).
+1. Copy `release/boilerplate/` into your Flask project, next to your app module (or unzip
+   `boilerplate.zip` there).
 2. Register the blueprint at whatever path you like:
 
    ```python
-   from pressure_lab import bp as pressure_lab
-   app.register_blueprint(pressure_lab, url_prefix="/pressure-lab")
+   from boilerplate import bp as boilerplate
+   app.register_blueprint(boilerplate, url_prefix="/boilerplate")
    ```
 
-3. Deploy as usual. The game is at `https://mcscope.com/pressure-lab/`. A request for `/pressure-lab` without the
+3. Deploy as usual. The game is at `https://mcscope.com/boilerplate/`. A request for `/boilerplate` without the
    trailing slash redirects to it, because the game loads its assets by relative path.
 
 Any `url_prefix` works, including `/` if the game should be the whole site.
@@ -37,7 +37,7 @@ Any `url_prefix` works, including `/` if the game should be the whole site.
 - **Fonts** load from Google Fonts. Everything else is self-contained.
 - **Saved data** (solved puzzles, personal bests, engine and mode choices) lives in each player's browser
   `localStorage`, per domain. Moving domains starts players fresh.
-- **Updating:** rerun `npm run package` and replace the `pressure_lab/` folder. Asset filenames are
+- **Updating:** rerun `npm run package` and replace the `boilerplate/` folder. Asset filenames are
   content-hashed, so browsers won't keep stale copies.
 - **Other hosts:** `dist/` (after `npm run build`) is a plain static site that works from any URL path on any
   static host.

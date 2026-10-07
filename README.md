@@ -1,4 +1,4 @@
-# Pressure Lab
+# Boilerplate
 
 A pixel-art physics puzzle game for the browser, about water, pressure, heat and phase changes.
 

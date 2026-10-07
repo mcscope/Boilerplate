@@ -1,4 +1,4 @@
-# Pressure Lab: Puzzle Campaign Design
+# Boilerplate: Puzzle Campaign Design
 
 ## How a puzzle works
 
