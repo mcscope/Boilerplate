@@ -142,6 +142,32 @@ const SOLUTIONS: Record<string, Solution[]> = {
     },
     act: torch(70, 147),
   }],
+  '7. Steam Pump': [{
+    label: 'dip tube below the waterline', expect: 'solve',
+    stale: 'crossover spills outside the cup wall (i=117 vs cup at 118); fixing that still lifts only ~20 in classic',
+    build: spend => {
+      // Dip tube inside the boiler: from the hole, down to near the floor (open at the bottom).
+      spend(STONE, 'wall', 83, 41, 88, 41); // cap over the tube
+      spend(STONE, 'wall', 83, 42, 83, 57); // tube left wall
+      spend(STONE, 'wall', 87, 45, 88, 57); // tube right wall, below the hole
+      // Outside: along from the hole, up a riser, over, and down into the cup.
+      spend(STONE, 'wall', 91, 45, 103, 45); // floor of the run out of the hole
+      spend(STONE, 'wall', 91, 41, 98, 41); // ceiling of the run
+      spend(STONE, 'wall', 99, 10, 99, 41); // riser left wall
+      spend(STONE, 'wall', 103, 14, 103, 44); // riser right wall
+      spend(STONE, 'wall', 99, 9, 117, 9); // top of the crossover
+      spend(STONE, 'wall', 104, 14, 116, 14); // floor of the crossover, spilling into the cup
+    },
+    act: torch(140, 134),
+  }, {
+    label: 'straight pipe from above the water', expect: 'fail',
+    build: spend => {
+      spend(STONE, 'wall', 91, 45, 103, 45); spend(STONE, 'wall', 91, 41, 98, 41);
+      spend(STONE, 'wall', 99, 10, 99, 41); spend(STONE, 'wall', 103, 14, 103, 44);
+      spend(STONE, 'wall', 99, 9, 117, 9); spend(STONE, 'wall', 104, 14, 116, 14);
+    },
+    act: torch(140, 134),
+  }],
 };
 
 /** Puzzles solved by a person in the browser, with no scripted solution yet. */

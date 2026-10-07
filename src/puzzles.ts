@@ -235,4 +235,26 @@ export const PUZZLES: Level[] = [
     },
     build: b => { oilPress(b, { waterPipe: true, crack: false, riser: false }); b.drain(1, 88, 158, 88); },
   },
+  {
+    name: '7. Steam Pump',
+    desc: 'A sealed boiler with one hole in its side, and a cup far above it. Get the boiler\'s water into the cup.',
+    puzzle: {
+      goal: { zone: { i0: 120, j0: 12, i1: 141, j1: 28 }, kind: WATER, amount: 120, label: 'Lift 120 water into the high cup' },
+      tools: { wall: Infinity, fire: 0.4 },
+      hint: 'Steam pressure pushes on whatever it can reach. If the pipe starts above the water, steam just escapes up it; feed the pipe from below the waterline.',
+    },
+    build: b => {
+      // Sealed boiler, half full, with a hole high in its right wall.
+      b.solid(50, 40, 90, 41); b.solid(50, 61, 90, 62); b.solid(50, 40, 51, 62); b.solid(89, 40, 90, 62);
+      b.open(89, 42, 90, 44);
+      b.water(52, 48, 88, 60);
+      // Firebox: logs soaked in an oil pool.
+      b.solid(50, 64, 51, 72); b.solid(89, 64, 90, 72); b.solid(50, 71, 90, 72);
+      b.soakedWood(54, 67, 86, 68, 2);
+      b.oil(52, 69, 88, 70);
+      // The high cup.
+      b.solid(118, 12, 119, 30); b.solid(142, 12, 143, 30); b.solid(118, 29, 143, 30);
+      b.drain(1, 88, 158, 88);
+    },
+  },
 ];
