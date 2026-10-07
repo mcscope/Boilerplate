@@ -1,12 +1,12 @@
 import './style.css';
 import { Renderer } from './render';
 import { OIL, WATER } from './sim/fluid';
-import { ICE, MUD, NONE, STONE, WAX_SOLID, WOOD } from './sim/thermo';
+import { HEATER, ICE, MUD, NONE, STONE, WAX_SOLID, WOOD } from './sim/thermo';
 import { PUZZLES } from './puzzles';
 import { brushIcon, installPixelUI, toolIcon } from './ui/pixel';
 import { Goal, GoalStatus, H, LEVELS, Level, Physics, W, World, puzzleGoals } from './world';
 
-type Tool = 'wall' | 'erase' | 'water' | 'muddy' | 'oil' | 'mud' | 'wood' | 'ice' | 'wax' | 'steam' | 'fire' | 'chill' | 'sponge';
+type Tool = 'wall' | 'erase' | 'water' | 'muddy' | 'oil' | 'mud' | 'wood' | 'ice' | 'wax' | 'heater' | 'steam' | 'fire' | 'chill' | 'sponge';
 
 const TOOLS: { id: Tool; label: string; key: string; hint: string }[] = [
   { id: 'wall', label: 'Wall', key: 'W', hint: 'Draw stone. Right-drag erases.' },
@@ -18,23 +18,24 @@ const TOOLS: { id: Tool; label: string; key: string; hint: string }[] = [
   { id: 'wood', label: 'Wood', key: 'L', hint: 'Place wood. Porous: soaks up wax, oil or water and carries it along its grain. A thin soaked stick is a wick. Burns above 300° where it touches air; wet wood must dry first. Right-drag erases.' },
   { id: 'ice', label: 'Ice', key: 'I', hint: 'Place ice. It melts above 0° once it has soaked up enough heat. Right-drag erases.' },
   { id: 'wax', label: 'Wax', key: 'X', hint: 'Place solid wax. Melts above 60°, flows, and sets again below 55°. Burns above 300°. Right-drag erases.' },
+  { id: 'heater', label: 'Heater', key: 'H', hint: 'Place heater blocks that hold 80°: warm enough to keep wax melted. Erase them to let things cool. Right-drag erases.' },
   { id: 'steam', label: 'Steam', key: 'M', hint: 'Release steam. It rises, pressurizes sealed pockets, and condenses as it cools.' },
   { id: 'fire', label: 'Fire', key: 'F', hint: 'Blowtorch: heats to 800°. Boils water, melts ice and wax, ignites oil and wood. Right-drag chills.' },
   { id: 'chill', label: 'Chill', key: 'C', hint: 'Cools to -40°. Freezes water into ice. Right-drag heats.' },
   { id: 'sponge', label: 'Sponge', key: 'S', hint: 'Soak up liquid. Right-drag pours water.' },
 ];
 const OPPOSITE: Record<Tool, Tool> = {
-  wall: 'erase', erase: 'wall', water: 'sponge', muddy: 'sponge', mud: 'erase', wood: 'erase', oil: 'sponge', ice: 'erase', wax: 'erase', steam: 'sponge', fire: 'chill', chill: 'fire', sponge: 'water',
+  wall: 'erase', erase: 'wall', water: 'sponge', muddy: 'sponge', mud: 'erase', wood: 'erase', oil: 'sponge', ice: 'erase', wax: 'erase', heater: 'erase', steam: 'sponge', fire: 'chill', chill: 'fire', sponge: 'water',
 };
 const BRUSH_COLOR: Record<Tool, [number, number, number]> = {
-  wall: [255, 255, 255], erase: [255, 120, 110], water: [140, 210, 255], muddy: [190, 150, 100], mud: [150, 110, 70], wood: [190, 130, 70], oil: [240, 200, 90], ice: [200, 240, 255], wax: [250, 230, 180],
+  wall: [255, 255, 255], erase: [255, 120, 110], water: [140, 210, 255], muddy: [190, 150, 100], mud: [150, 110, 70], wood: [190, 130, 70], oil: [240, 200, 90], ice: [200, 240, 255], wax: [250, 230, 180], heater: [255, 110, 70],
   steam: [230, 230, 240], fire: [255, 150, 50], chill: [120, 180, 255], sponge: [255, 220, 120],
 };
 type View = 'normal' | 'pressure' | 'temperature';
 const BRUSHES = [2, 3, 5, 9]; // radii in px; labelled by diameter
 /** Which budget an erased material refunds. */
-const REFUND: Record<number, Tool> = { [STONE]: 'wall', [WOOD]: 'wood', [ICE]: 'ice', [WAX_SOLID]: 'wax', [MUD]: 'mud' };
-const SOLID_TOOL: Partial<Record<Tool, number>> = { wall: STONE, erase: NONE, ice: ICE, wax: WAX_SOLID, mud: MUD, wood: WOOD };
+const REFUND: Record<number, Tool> = { [STONE]: 'wall', [WOOD]: 'wood', [ICE]: 'ice', [WAX_SOLID]: 'wax', [MUD]: 'mud', [HEATER]: 'heater' };
+const SOLID_TOOL: Partial<Record<Tool, number>> = { wall: STONE, erase: NONE, ice: ICE, wax: WAX_SOLID, mud: MUD, wood: WOOD, heater: HEATER };
 
 /** Puzzles first, then the free-play playgrounds. */
 const ALL: Level[] = [...PUZZLES, ...LEVELS];

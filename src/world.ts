@@ -129,6 +129,9 @@ export class Builder {
   }
 }
 
+/** Temperature the player's Heater blocks hold: above wax's melting point, well below anything igniting. */
+export const HEATER_TOOL_TEMP = 80;
+
 export class World {
   readonly physics: Physics;
   readonly fluid: Fluid;
@@ -229,6 +232,7 @@ export class World {
           this.playerMat[c] = NONE;
         }
         this.setCell(i, j, mat);
+        if (mat === HEATER) this.thermo.T[c] = this.thermo.setT[c] = HEATER_TOOL_TEMP;
       }
     if (mat !== NONE) f.removeWhere((px, py) => f.solidAt(px, py));
     this.solidVersion++;
