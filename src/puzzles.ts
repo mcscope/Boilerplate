@@ -275,7 +275,7 @@ export const PUZZLES: Level[] = [
   },
   {
     name: '7. Casting',
-    desc: 'Molten wax pours from the left. Cast the statue: fill the marked shape with solid wax.',
+    desc: 'Hot molten wax pours from the left. Cast the statue: fill the marked shape with solid wax.',
     puzzle: {
       goal: {
         zone: { i0: 62, j0: 52, i1: 97, j1: 85 }, kind: WAX, amount: 677, maxExtra: 60,
@@ -325,7 +325,7 @@ export const PUZZLES: Level[] = [
     build: b => {
       b.solid(52, 86, 108, 87); // plinth under the statue
       b.drain(1, 88, 158, 88);
-      b.faucet(30, 6, 4, 40, true, WAX, 0, 75);
+      b.faucet(30, 6, 4, 40, true, WAX, 0, 140);
     },
   },
 ];
