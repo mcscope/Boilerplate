@@ -106,21 +106,23 @@ export const PUZZLES: Level[] = [
     },
   },
   {
-    name: '2c. Hero\'s Fountain',
-    desc: 'Get water into the marked area, higher than the faucet. No fire, no steam: just water, walls, and a sealed tank of water.',
+    name: '2c. Overpressure',
+    desc: 'The beaker is high up and out of reach. A pipe from it comes down to the middle of the room. Get water up into the beaker.',
     puzzle: {
-      goal: { zone: { i0: 104, j0: 10, i1: 118, j1: 24 }, kind: WATER, amount: 150, label: '150 water up high' },
+      goal: { zone: { i0: 120, j0: 8, i1: 136, j1: 18 }, kind: WATER, amount: 150, label: '150 water in the high beaker' },
       tools: { wall: Infinity },
-      hint: 'Falling water can squeeze trapped air, and squeezed air pushes on whatever water it touches.',
-      noBuild: [{ i0: 17, j0: 28, i1: 26, j1: 36 }], // around the pipe
+      hint: 'Water climbs a pipe when the water around its bottom is pushed harder than the air at its top. Seal the bottom in, and feed the seal from higher up.',
+      noBuild: [{ i0: 104, j0: 1, i1: 158, j1: 40 }], // the beaker and the top of the pipe
     },
     build: b => {
-      // A sealed tank full of water, with a port in its roof (left) and a port low in its right side.
-      b.solid(68, 42, 71, 62); b.solid(91, 42, 94, 56); b.solid(91, 59, 94, 62); b.solid(68, 61, 94, 62);
-      b.solid(68, 42, 71, 43); b.solid(74, 42, 94, 43);
-      b.water(72, 44, 90, 60);
+      // High beaker.
+      b.solid(118, 10, 119, 20); b.solid(137, 6, 138, 20); b.solid(118, 19, 138, 20);
+      // The fountainhead: a pipe from a spout over the beaker down to the middle of the room, open at the bottom.
+      b.solid(109, 7, 122, 7);               // spout ceiling
+      b.solid(112, 10, 117, 10);             // spout floor
+      b.solid(109, 7, 109, 45); b.solid(112, 10, 112, 45);
       b.drain(1, 88, 158, 88);
-      b.faucet(40, 70, 4, 60, true, WATER);
+      b.faucet(40, 6, 4, 100, true, WATER);
     },
   },
   {
