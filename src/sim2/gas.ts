@@ -20,7 +20,7 @@
  * - `applyAtmosphere`: the only non-conservative boundary. With openTop, the top interior row is an infinite
  *   reservoir at the ambient state.
  */
-import { GAS, GasState, GasTransport, MacGrid, RHO_AIR, SOLID, T_AMBIENT } from './types';
+import { LIQUID, GAS, GasState, GasTransport, MacGrid, RHO_AIR, SOLID, T_AMBIENT } from './types';
 
 /** Max summed outgoing Courant number per cell per substep for second-order (MUSCL) fluxes from that cell. */
 const HO_CFL = 0.5;
@@ -420,6 +420,24 @@ function remap(grid: MacGrid, gas: GasState, prevType: Int32Array) {
     if (dst < 0) continue;
     air[dst] += a; vapor[dst] += b;
     pendingAir[c] = 0; pendingVapor[c] = 0;
+  }
+
+  // 4. A cell that just turned from liquid to gas next to existing gas fills from it at once: sound crosses a cell
+  //    in about a millisecond, far faster than a step, so the gas there is effectively one body. Equalize density
+  //    with its gas neighbours (mass-conserving), a few passes so short chains of new cells fill too. Only a gap
+  //    with no gas around it (a tear inside liquid, as in a siphon) stays a near-vacuum. Without this, surface
+  //    cells that flicker between liquid and gas each step become vacuum spikes that shake the whole surface.
+  for (let pass = 0; pass < 3; pass++) {
+    for (let c = 0; c < n; c++) {
+      if (cellType[c] !== GAS || prevType[c] !== LIQUID) continue;
+      let k = 1, ta = air[c], tv = vapor[c];
+      const nb = [c - 1, c + 1, c - nx, c + nx];
+      for (const d of nb) if (cellType[d] === GAS && air[d] + vapor[d] > 0) { k++; ta += air[d]; tv += vapor[d]; }
+      if (k === 1) continue;
+      const ea = ta / k, ev = tv / k;
+      air[c] = ea; vapor[c] = ev;
+      for (const d of nb) if (cellType[d] === GAS && air[d] + vapor[d] > 0) { air[d] = ea; vapor[d] = ev; }
+    }
   }
 }
 
