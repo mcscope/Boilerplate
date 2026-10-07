@@ -42,6 +42,8 @@ export interface Goal {
   minPurity?: number; // fraction of the liquid in the zone that must be `kind`
   maxSilt?: number; // dirt allowed: suspended silt plus anything settled in the zone, per unit of liquid
   minTemp?: number; // average temperature required, °C
+  /** Fill-with-mud goal: `amount` is the number of cells in the zone that must be settled mud (kind is ignored). */
+  mud?: boolean;
   label: string;
 }
 
@@ -270,6 +272,16 @@ export class World {
     const goal = this.level?.puzzle?.goal;
     if (!goal) return;
     const f = this.fluid, z = goal.zone;
+    if (goal.mud) {
+      let mud = 0;
+      for (let j = z.j0; j <= z.j1; j++) for (let i = z.i0; i <= z.i1; i++) if (this.thermo.mat[i + j * NX] === MUD) mud++;
+      const g = this.goal;
+      g.amount = mud;
+      g.met = mud >= goal.amount;
+      g.held = g.met ? g.held + dt : 0;
+      if (g.held >= HOLD_TO_WIN) g.solved = true;
+      return;
+    }
     let mine = 0, all = 0, silt = 0, temp = 0;
     for (let k = 0; k < f.count; k++) {
       const i = f.pos[2 * k] / CELL, j = f.pos[2 * k + 1] / CELL;

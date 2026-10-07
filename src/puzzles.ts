@@ -134,6 +134,21 @@ export const PUZZLES: Level[] = [
     },
   },
   {
+    name: '3c. Mud Pit',
+    desc: 'Muddy water pours from the faucet. Fill the tall marked shaft with solid mud.',
+    puzzle: {
+      // The shaft is 6 cells wide and 36 tall (216 cells); 90% of it has to be mud.
+      goal: { zone: { i0: 112, j0: 50, i1: 117, j1: 85 }, kind: WATER, amount: 195, mud: true, label: 'Fill the shaft with mud (195 of 216 cells)' },
+      tools: { wall: Infinity },
+      hint: 'Mud only builds up where silty water sits still. Water plunging straight in keeps the silt stirred up; let it calm down in the shaft and let the cleared water spill away.',
+    },
+    build: b => {
+      b.solid(100, 86, 130, 87); // ground under the shaft
+      b.drain(1, 88, 158, 88);
+      b.faucet(40, 6, 4, 110, true, WATER, 0.9);
+    },
+  },
+  {
     name: '4. Skimmer',
     desc: 'Oil and water pour into a tank. Hold only oil in the marked area on the left.',
     puzzle: {
@@ -187,52 +202,6 @@ export const PUZZLES: Level[] = [
       b.wood(40, 79, 78, 81); b.wood(48, 74, 70, 75);
       // The other beaker
       b.solid(120, 60, 121, 86); b.solid(139, 60, 140, 86); b.solid(120, 85, 140, 86);
-      b.drain(1, 88, 158, 88);
-    },
-  },
-  {
-    name: '6. Pressure Cooker',
-    desc: 'Get water from the boiler up into the high cup. The boiler lid is cracked.',
-    puzzle: {
-      goal: { zone: { i0: 108, j0: 48, i1: 131, j1: 70 }, kind: WATER, amount: 100, label: 'Lift 100 water into the cup' },
-      tools: { wall: Infinity, fire: 0.4 },
-      hint: 'Steam pressure can push the water up the pipe, but only if it can\'t escape. Seal the crack, then light the oil-soaked logs.',
-    },
-    build: b => {
-      // Boiler, half full, with a crack in its lid.
-      b.solid(50, 40, 90, 41); b.solid(50, 61, 90, 62); b.solid(50, 40, 51, 62); b.solid(89, 40, 90, 62);
-      b.open(60, 40, 62, 41);
-      b.water(52, 48, 88, 60);
-      // Outlet pipe up through the lid and over into the cup.
-      b.solid(79, 30, 79, 57); b.solid(83, 35, 83, 57); b.open(80, 40, 82, 41);
-      b.solid(79, 30, 121, 31); b.solid(83, 35, 117, 35);
-      b.solid(117, 35, 117, 44); b.solid(121, 30, 121, 44);
-      b.solid(106, 48, 107, 72); b.solid(132, 48, 133, 72); b.solid(106, 71, 133, 72);
-      // Firebox: logs soaked in an oil pool.
-      b.solid(50, 64, 51, 72); b.solid(89, 64, 90, 72); b.solid(50, 71, 90, 72);
-      b.soakedWood(54, 67, 86, 68, 2);
-      b.oil(52, 69, 88, 70);
-    },
-  },
-  {
-    name: '6b. Steam Pump',
-    desc: 'A sealed boiler with one hole in its side, and a cup far above it. Get the boiler\'s water into the cup.',
-    puzzle: {
-      goal: { zone: { i0: 120, j0: 12, i1: 141, j1: 28 }, kind: WATER, amount: 120, label: 'Lift 120 water into the high cup' },
-      tools: { wall: Infinity, fire: 0.4 },
-      hint: 'Steam pressure pushes on whatever it can reach. If the pipe starts above the water, steam just escapes up it; feed the pipe from below the waterline.',
-    },
-    build: b => {
-      // Sealed boiler, half full, with a hole high in its right wall.
-      b.solid(50, 40, 90, 41); b.solid(50, 61, 90, 62); b.solid(50, 40, 51, 62); b.solid(89, 40, 90, 62);
-      b.open(89, 42, 90, 44);
-      b.water(52, 48, 88, 60);
-      // Firebox: logs soaked in an oil pool.
-      b.solid(50, 64, 51, 72); b.solid(89, 64, 90, 72); b.solid(50, 71, 90, 72);
-      b.soakedWood(54, 67, 86, 68, 2);
-      b.oil(52, 69, 88, 70);
-      // The high cup.
-      b.solid(118, 12, 119, 30); b.solid(142, 12, 143, 30); b.solid(118, 29, 143, 30);
       b.drain(1, 88, 158, 88);
     },
   },

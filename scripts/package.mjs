@@ -23,11 +23,12 @@ Usage in your Flask app:
 
 The game is a static site in ./game; this blueprint just serves it.
 """
-from pathlib import Path
+import os
 
 from flask import Blueprint, redirect, request, send_from_directory
 
-GAME_DIR = Path(__file__).parent / "game"
+# os.path rather than pathlib, so this also runs on Python 2.
+GAME_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "game")
 
 bp = Blueprint("pressure_lab", __name__)
 

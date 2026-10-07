@@ -5,6 +5,8 @@ declare const process: {
   exitCode: number | undefined;
   exit(code?: number): never;
   stdout: { write(s: string): boolean };
+  env: Record<string, string | undefined>;
+  cpuUsage(previous?: { user: number; system: number }): { user: number; system: number };
 };
 declare module 'os' {
   export function cpus(): unknown[];

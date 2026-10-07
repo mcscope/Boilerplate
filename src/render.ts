@@ -389,7 +389,8 @@ export class Renderer {
     // Fill line: where `amount` particles of liquid would come up to, at rest density, across the open width.
     let open = 0;
     for (let i = z.i0; i <= z.i1; i++) if (world.fluid.s[i + z.j1 * NX] !== 0) open++;
-    const rows = goal.amount / (world.fluid.restDensity * Math.max(1, open));
+    // Liquid goals: where that many particles come up to at rest density. Mud goals: that many cells of mud.
+    const rows = goal.mud ? goal.amount / Math.max(1, open) : goal.amount / (world.fluid.restDensity * Math.max(1, open));
     const ly = Math.max(y0, Math.round((z.j1 + 1 - rows) * CELL));
     const march = Math.floor(world.time * 6);
     for (let x = x0; x <= x1; x++) {
