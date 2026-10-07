@@ -1,0 +1,368 @@
+import './style.css';
+import { Renderer } from './render';
+import { OIL, WATER } from './sim/fluid';
+import { ICE, MUD, NONE, STONE, WAX_SOLID, WOOD } from './sim/thermo';
+import { PUZZLES } from './puzzles';
+import { H, LEVELS, Level, W, World } from './world';
+
+type Tool = 'wall' | 'erase' | 'water' | 'muddy' | 'oil' | 'mud' | 'wood' | 'ice' | 'wax' | 'steam' | 'fire' | 'chill' | 'sponge';
+
+const TOOLS: { id: Tool; label: string; key: string; hint: string }[] = [
+  { id: 'wall', label: 'Wall', key: 'W', hint: 'Draw stone. Right-drag erases.' },
+  { id: 'erase', label: 'Erase', key: 'E', hint: 'Remove any solid. Right-drag draws stone.' },
+  { id: 'water', label: 'Water', key: 'Q', hint: 'Pour water. Right-drag soaks liquid up.' },
+  { id: 'muddy', label: 'Muddy water', key: 'U', hint: 'Pour silty water. Silt settles out where the water is calm and builds up as mud. Right-drag soaks liquid up.' },
+  { id: 'oil', label: 'Oil', key: 'O', hint: 'Pour oil. It floats on water and burns above 250°. Right-drag soaks liquid up.' },
+  { id: 'mud', label: 'Mud', key: 'D', hint: 'Place solid mud. Fast-flowing water erodes it into muddy water. Right-drag erases.' },
+  { id: 'wood', label: 'Wood', key: 'L', hint: 'Place wood. Porous: soaks up wax, oil or water and carries it along its grain. A thin soaked stick is a wick. Burns above 300° where it touches air; wet wood must dry first. Right-drag erases.' },
+  { id: 'ice', label: 'Ice', key: 'I', hint: 'Place ice. It melts above 0° once it has soaked up enough heat. Right-drag erases.' },
+  { id: 'wax', label: 'Wax', key: 'X', hint: 'Place solid wax. Melts above 60°, flows, and sets again below 55°. Burns above 300°. Right-drag erases.' },
+  { id: 'steam', label: 'Steam', key: 'M', hint: 'Release steam. It rises, pressurizes sealed pockets, and condenses as it cools.' },
+  { id: 'fire', label: 'Fire', key: 'F', hint: 'Blowtorch: heats to 800°. Boils water, melts ice and wax, ignites oil and wood. Right-drag chills.' },
+  { id: 'chill', label: 'Chill', key: 'C', hint: 'Cools to -40°. Freezes water into ice. Right-drag heats.' },
+  { id: 'sponge', label: 'Sponge', key: 'S', hint: 'Soak up liquid. Right-drag pours water.' },
+];
+const OPPOSITE: Record<Tool, Tool> = {
+  wall: 'erase', erase: 'wall', water: 'sponge', muddy: 'sponge', mud: 'erase', wood: 'erase', oil: 'sponge', ice: 'erase', wax: 'erase', steam: 'sponge', fire: 'chill', chill: 'fire', sponge: 'water',
+};
+const BRUSH_COLOR: Record<Tool, [number, number, number]> = {
+  wall: [255, 255, 255], erase: [255, 120, 110], water: [140, 210, 255], muddy: [190, 150, 100], mud: [150, 110, 70], wood: [190, 130, 70], oil: [240, 200, 90], ice: [200, 240, 255], wax: [250, 230, 180],
+  steam: [230, 230, 240], fire: [255, 150, 50], chill: [120, 180, 255], sponge: [255, 220, 120],
+};
+type View = 'normal' | 'pressure' | 'temperature';
+const BRUSHES = [2, 3, 5, 9]; // radii in px; labelled by diameter
+/** Which budget an erased material refunds. */
+const REFUND: Record<number, Tool> = { [STONE]: 'wall', [WOOD]: 'wood', [ICE]: 'ice', [WAX_SOLID]: 'wax', [MUD]: 'mud' };
+const SOLID_TOOL: Partial<Record<Tool, number>> = { wall: STONE, erase: NONE, ice: ICE, wax: WAX_SOLID, mud: MUD, wood: WOOD };
+
+/** Puzzles first, then the free-play playgrounds. */
+const ALL: Level[] = [...PUZZLES, ...LEVELS];
+const world = new World();
+let levelIndex = 0;
+/** Remaining tool budgets in a puzzle (cells, or seconds for fire / chill); null in free play. */
+let budget: Record<string, number> | null = null;
+/** How much of each tool the player has used this attempt (the score for unlimited tools like walls). */
+let used: Record<string, number> = {};
+let solvedShown = false;
+let hintShown = false;
+let lastGoalHtml = '';
+const solved = new Set<string>();
+try { for (const n of JSON.parse(localStorage.getItem('solved') ?? '[]')) solved.add(n); } catch { /* storage unavailable */ }
+let tool: Tool = 'water';
+let brushIndex = 1; // 6px
+let paused = false;
+let view: View = 'normal';
+let mouse: { x: number; y: number } | null = null;
+let held: Tool | null = null;
+
+document.querySelector('#app')!.innerHTML = `
+  <header>
+    <h1>PRESSURE LAB</h1>
+    <div class="group">
+      <button id="pause"></button>
+      <button id="step" title="Advance one frame (.)">Step</button>
+      <button id="reset" title="Reload the level (R)">Reset</button>
+    </div>
+    <div id="stats"></div>
+  </header>
+  <main>
+    <div class="stage">
+      <canvas id="view" width="${W}" height="${H}"></canvas>
+      <div id="banner"></div>
+    </div>
+    <aside>
+      <section id="level-info">
+        <h2 id="level-name"></h2>
+        <p id="level-desc" class="muted"></p>
+        <div id="goal"></div>
+      </section>
+      <section>
+        <h2>Tools</h2>
+        <div class="tools">${TOOLS.map(t => `<button data-tool="${t.id}"><kbd>${t.key}</kbd>${t.label}</button>`).join('')}</div>
+        <p id="tool-hint" class="muted"></p>
+        <h2>Brush size</h2>
+        <div class="tools">${BRUSHES.map((b, i) => `<button data-brush="${i}"><kbd>${i + 1}</kbd>${b * 2}px</button>`).join('')}</div>
+      </section>
+      <section>
+        <h2>World</h2>
+        <div class="tools">
+          <button id="faucet" title="Toggle the level's faucets (F)"></button>
+          <button id="pressure" title="Tint air by pressure: blue below atmosphere, orange above (P)">Pressure view</button>
+          <button id="temperature" title="Show temperature: blue cold, red hot, white very hot (T)">Temperature view</button>
+        </div>
+      </section>
+      <section>
+        <h2>Puzzles</h2>
+        <div class="levels">${PUZZLES.map((l, i) => `<button data-level="${i}">${l.name}</button>`).join('')}</div>
+        <h2>Playground</h2>
+        <div class="levels">${LEVELS.map((l, i) => `<button data-level="${PUZZLES.length + i}">${l.name}</button>`).join('')}</div>
+      </section>
+    </aside>
+  </main>`;
+
+const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
+const canvas = $<HTMLCanvasElement>('#view');
+const renderer = new Renderer(canvas.getContext('2d')!);
+const fx = renderer.fx;
+
+// ---- Juice: banners and effects ----
+
+const PUFF_COLOR: Record<number, [number, number, number]> = {
+  [STONE]: [160, 164, 182], [MUD]: [128, 94, 60], [WOOD]: [176, 124, 70], [ICE]: [214, 242, 255], [WAX_SOLID]: [244, 224, 176],
+};
+
+function banner(html: string, cls: string, ms = 1600) {
+  const el = $('#banner');
+  el.className = '';
+  void el.offsetWidth; // restart the animation
+  el.innerHTML = html;
+  el.className = cls;
+  if (ms > 0) setTimeout(() => { if (el.className === cls) el.className = ''; }, ms);
+}
+
+function shake(el: HTMLElement) {
+  el.classList.remove('shake');
+  void el.offsetWidth;
+  el.classList.add('shake');
+  el.addEventListener('animationend', () => el.classList.remove('shake'), { once: true });
+}
+
+function celebrate() {
+  const z = ALL[levelIndex].puzzle!.goal.zone;
+  const cx = ((z.i0 + z.i1 + 1) / 2) * 2, top = z.j0 * 2;
+  fx.add(cx, top, 'drop', 40, 160, 1.4);
+  fx.add(cx, top, 'spark', 25, 140, 1.6);
+  fx.add(cx, top, 'steam', 10, 50, 1.2);
+  const payloads = ['drop', 'spark', 'steam', 'drop', 'spark'] as const;
+  payloads.forEach((p, n) => fx.rocket(cx + (n - 2) * 22, top, p, n * 0.18));
+  const tools = ALL[levelIndex].puzzle!.tools;
+  const summary = Object.keys(tools).map(k => {
+    const u = used[k] ?? 0;
+    return k === 'fire' || k === 'chill' ? `${u.toFixed(1)}s ${k}` : `${u} ${k}`;
+  }).join(' · ');
+  banner(`<div class="big">SOLVED!</div><div class="small">${world.time.toFixed(1)}s · ${summary}</div>`, 'solved-banner', 3200);
+}
+
+function loadLevel(i: number) {
+  levelIndex = i;
+  const level = ALL[i];
+  world.load(level);
+  budget = level.puzzle ? { ...level.puzzle.tools } : null;
+  used = {};
+  solvedShown = false;
+  hintShown = false;
+  if (budget) {
+    paused = true; // puzzles start paused: build first, then press Play
+    if (!(tool in budget)) tool = Object.keys(budget)[0] as Tool;
+  }
+  $('#level-name').textContent = level.name;
+  $('#level-desc').textContent = level.desc;
+  refreshButtons();
+  renderGoal();
+  fx.startWipe();
+  banner(`<div class="big">${level.name}</div>`, 'title-banner', 1700);
+}
+
+function allowed(t: Tool) {
+  return !budget || t in budget || (t === 'erase' && Object.keys(budget).some(k => k in SOLID_TOOL));
+}
+
+function renderGoal() {
+  const p = ALL[levelIndex].puzzle, el = $('#goal');
+  if (!p) { el.innerHTML = ''; lastGoalHtml = ''; return; }
+  const g = world.goal, goal = p.goal;
+  const pct = Math.min(100, (g.amount / goal.amount) * 100);
+  const checks: string[] = [];
+  if (goal.minPurity !== undefined) checks.push(`Purity <b class="${g.purity >= goal.minPurity ? 'ok' : 'bad'}">${Math.round(g.purity * 100)}%</b> (need ${Math.round(goal.minPurity * 100)}%)`);
+  if (goal.maxSilt !== undefined) checks.push(`Dirt <b class="${g.silt <= goal.maxSilt ? 'ok' : 'bad'}">${Math.round(g.silt * 100)}%</b> (max ${Math.round(goal.maxSilt * 100)}%)`);
+  if (goal.minTemp !== undefined) checks.push(`Temperature <b class="${g.temp >= goal.minTemp ? 'ok' : 'bad'}">${Math.round(g.temp)}°</b> (need ${goal.minTemp}°)`);
+  const next = levelIndex + 1 < PUZZLES.length ? `<button id="next">Next puzzle →</button>` : '';
+  const html = `
+    <div class="goal-label">Goal: ${goal.label}</div>
+    <div class="meter"><i style="width:${pct}%"></i></div>
+    <div class="muted">${g.amount} / ${goal.amount}${checks.length ? ' · ' + checks.join(' · ') : ''}</div>
+    ${g.solved ? `<div class="solved">Solved! ${next}</div>` : g.met ? `<div class="muted">Holding… ${g.held.toFixed(1)}s</div>` : ''}
+    ${hintShown ? `<p class="muted hint">Hint: ${p.hint}</p>` : '<button id="hint">Show hint</button>'}
+    ${paused && world.time === 0 ? '<p class="muted"><b>Build first, then press Play (Space).</b></p>' : ''}`;
+  // Only touch the DOM when something changed, so buttons in the panel don't get replaced mid-click.
+  if (html !== lastGoalHtml) { el.innerHTML = html; lastGoalHtml = html; }
+}
+
+function refreshButtons() {
+  $('#pause').textContent = paused ? '▶ Play' : '❚❚ Pause';
+  for (const b of document.querySelectorAll<HTMLElement>('[data-tool]')) {
+    const t = b.dataset.tool as Tool;
+    b.classList.toggle('active', t === tool);
+    b.style.display = allowed(t) ? '' : 'none';
+    const label = TOOLS.find(x => x.id === t)!.label;
+    const timed = t === 'fire' || t === 'chill';
+    const left = !budget || !(t in budget) ? ''
+      : !isFinite(budget[t]) ? ` · ${used[t] ?? 0} used`
+      : timed ? ` · ${budget[t].toFixed(1)}s` : ` · ${budget[t]}`;
+    b.innerHTML = `<kbd>${TOOLS.find(x => x.id === t)!.key}</kbd>${label}${left}`;
+  }
+  for (const b of document.querySelectorAll<HTMLElement>('[data-brush]')) b.classList.toggle('active', Number(b.dataset.brush) === brushIndex);
+  for (const b of document.querySelectorAll<HTMLElement>('[data-level]')) b.classList.toggle('active', Number(b.dataset.level) === levelIndex);
+  const faucetOn = world.emitters.some(e => e.on);
+  const faucet = $('#faucet');
+  faucet.textContent = world.emitters.length ? (faucetOn ? 'Faucet: on (G)' : 'Faucet: off (G)') : 'No faucet';
+  faucet.toggleAttribute('disabled', !world.emitters.length || !!budget);
+  $('#pressure').classList.toggle('active', view === 'pressure');
+  $('#temperature').classList.toggle('active', view === 'temperature');
+  $('#tool-hint').textContent = TOOLS.find(t => t.id === tool)!.hint;
+}
+
+function togglePause() {
+  paused = !paused;
+  // A little splash from each faucet when the water starts.
+  if (!paused) for (const e of world.emitters) if (e.on) fx.add(e.x + e.w / 2, e.y, 'drop', 10, 70, 1.6, Math.PI / 2);
+}
+
+function toggleFaucet() {
+  const on = !world.emitters.some(e => e.on);
+  for (const e of world.emitters) e.on = on;
+  refreshButtons();
+}
+
+document.addEventListener('click', ev => {
+  const el = (ev.target as HTMLElement).closest<HTMLElement>('button');
+  if (!el) return;
+  if (el.id === 'pause') togglePause();
+  else if (el.id === 'step') { paused = true; world.step(1 / 60); }
+  else if (el.id === 'reset') loadLevel(levelIndex);
+  else if (el.id === 'faucet') toggleFaucet();
+  else if (el.id === 'next') loadLevel(levelIndex + 1);
+  else if (el.id === 'hint') { hintShown = true; renderGoal(); }
+  else if (el.id === 'pressure') view = view === 'pressure' ? 'normal' : 'pressure';
+  else if (el.id === 'temperature') view = view === 'temperature' ? 'normal' : 'temperature';
+  else if (el.dataset.tool && allowed(el.dataset.tool as Tool)) tool = el.dataset.tool as Tool;
+  else if (el.dataset.brush) brushIndex = Number(el.dataset.brush);
+  else if (el.dataset.level) loadLevel(Number(el.dataset.level));
+  refreshButtons();
+});
+
+window.addEventListener('keydown', ev => {
+  const k = ev.key.toLowerCase();
+  const t = TOOLS.find(t => t.key.toLowerCase() === k);
+  if (t) { if (allowed(t.id)) tool = t.id; }
+  else if (/^[1-4]$/.test(k)) brushIndex = Number(k) - 1;
+  else if (ev.code === 'Space') { togglePause(); ev.preventDefault(); }
+  else if (k === '.') { paused = true; world.step(1 / 60); }
+  else if (k === 'r') loadLevel(levelIndex);
+  else if (k === 'g') { if (!budget) toggleFaucet(); }
+  else if (k === 'p') view = view === 'pressure' ? 'normal' : 'pressure';
+  else if (k === 't') view = view === 'temperature' ? 'normal' : 'temperature';
+  else return;
+  refreshButtons();
+});
+
+function canvasPos(ev: MouseEvent) {
+  const r = canvas.getBoundingClientRect();
+  return { x: ((ev.clientX - r.left) / r.width) * W, y: ((ev.clientY - r.top) / r.height) * H };
+}
+
+canvas.addEventListener('contextmenu', ev => ev.preventDefault());
+canvas.addEventListener('mousedown', ev => {
+  held = ev.button === 2 ? OPPOSITE[tool] : tool;
+  if (!allowed(held)) held = budget && tool in SOLID_TOOL ? 'erase' : null;
+  mouse = canvasPos(ev);
+  ev.preventDefault();
+});
+canvas.addEventListener('mousemove', ev => (mouse = canvasPos(ev)));
+canvas.addEventListener('mouseleave', () => (mouse = null));
+window.addEventListener('mouseup', () => (held = null));
+
+function applyBrush() {
+  if (!held || !mouse) return;
+  const r = BRUSHES[brushIndex];
+  const { x, y } = mouse;
+  const mat = SOLID_TOOL[held];
+  if (mat !== undefined) {
+    // Materials: puzzles limit how many cells you can place; erasing your own refunds them.
+    const res = world.paintSolid(x, y, r, mat, budget && held !== 'erase' ? budget[held] : Infinity);
+    if (res.placed > 0) fx.add(x, y, 'dust', Math.min(5, res.placed), 45, Math.PI * 2, -Math.PI / 2, PUFF_COLOR[mat]);
+    res.erased.forEach((n, m) => { if (n) fx.add(x, y, 'dust', Math.min(5, n), 30, 1.2, Math.PI / 2, PUFF_COLOR[m] ?? [150, 150, 160]); });
+    if (budget && held !== 'erase' && res.placed === 0 && budget[held] <= 0) {
+      const btn = document.querySelector<HTMLElement>(`[data-tool="${held}"]`);
+      if (btn && !btn.classList.contains('shake')) shake(btn);
+    }
+    if (budget) {
+      if (held !== 'erase') { budget[held] -= res.placed; used[held] = (used[held] ?? 0) + res.placed; }
+      res.erased.forEach((n, m) => {
+        const t = REFUND[m];
+        if (n && t && t in budget!) { budget![t] += n; used[t] = Math.max(0, (used[t] ?? 0) - n); }
+      });
+      refreshButtons();
+    }
+    return;
+  }
+  if (held === 'fire' || held === 'chill') {
+    if (budget) {
+      if (budget[held] <= 0) {
+        const btn = document.querySelector<HTMLElement>(`[data-tool="${held}"]`);
+        if (btn && !btn.classList.contains('shake')) shake(btn);
+        return;
+      }
+      budget[held] = Math.max(0, budget[held] - 1 / 60);
+      used[held] = (used[held] ?? 0) + 1 / 60;
+      refreshButtons();
+    }
+    if (held === 'fire') world.thermo.applyTemperature(x, y, r, 800);
+    else world.thermo.applyTemperature(x, y, r, -40, 1 / 60, 1500);
+    return;
+  }
+  if (held === 'water') world.pour(x, y, r, WATER);
+  else if (held === 'muddy') world.pour(x, y, r, WATER, 1);
+  else if (held === 'oil') world.pour(x, y, r, OIL);
+  else if (held === 'steam') world.steam(x, y, r);
+  else world.sponge(x, y, r);
+}
+
+// ---- Loop ----
+
+let simMs = 0;
+let fps = 60;
+let last = performance.now();
+let statTimer = 0;
+
+function frame(now: number) {
+  const dt = (now - last) / 1000;
+  last = now;
+  fps = fps * 0.95 + (1 / Math.max(dt, 1e-3)) * 0.05;
+
+  applyBrush();
+  if (!paused) {
+    const t0 = performance.now();
+    world.step(1 / 60);
+    simMs = simMs * 0.9 + (performance.now() - t0) * 0.1;
+  }
+  renderer.draw(world, { view, brush: mouse ? { ...mouse, r: BRUSHES[brushIndex], color: BRUSH_COLOR[held ?? tool] } : null, dt: Math.min(dt, 0.05) });
+
+  statTimer -= dt;
+  if (statTimer <= 0) {
+    statTimer = 0.25;
+    renderGoal();
+    if (world.goal.solved && !solvedShown) {
+      solvedShown = true;
+      solved.add(ALL[levelIndex].name);
+      try { localStorage.setItem('solved', JSON.stringify([...solved])); } catch { /* storage unavailable */ }
+      markSolved();
+      celebrate();
+    }
+    $('#stats').innerHTML = `<span>Water particles <b>${world.fluid.count}</b></span><span>Simulation <b>${simMs.toFixed(1)} ms</b></span><span>Frame rate <b>${Math.round(fps)}</b></span>`;
+  }
+  requestAnimationFrame(frame);
+}
+
+function markSolved() {
+  for (const b of document.querySelectorAll<HTMLElement>('[data-level]')) b.classList.toggle('done', solved.has(ALL[Number(b.dataset.level)].name));
+}
+
+// URL options for testing: ?level=N picks a level, ?warm=N simulates N frames before the first draw.
+const params = new URLSearchParams(location.search);
+loadLevel(Math.min(ALL.length - 1, Number(params.get('level') ?? 0)));
+markSolved();
+for (let k = Number(params.get('warm') ?? 0); k > 0; k--) world.step(1 / 60);
+if (params.has('pressure')) view = 'pressure';
+if (params.has('temperature')) view = 'temperature';
+requestAnimationFrame(frame);

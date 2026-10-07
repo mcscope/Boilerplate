@@ -1,0 +1,124 @@
+:root {
+  --bg: #0e0f16;
+  --panel: #181a26;
+  --panel-hi: #242838;
+  --line: #3a4058;
+  --shadow: #05060a;
+  --text: #e2e6f2;
+  --muted: #8f97b2;
+  --accent: #6cc4ff;
+  --brass: #e2b45e;
+  font-family: 'Pixelify Sans', ui-monospace, monospace;
+  font-size: 15px;
+  color: var(--text);
+  background: var(--bg);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; background: var(--bg); user-select: none; }
+h1 { margin: 0; font-family: 'Silkscreen', monospace; font-weight: 400; font-size: 22px; color: var(--accent); text-shadow: 2px 2px 0 var(--shadow); }
+h2 { margin: 0 0 8px; font-family: 'Silkscreen', monospace; font-weight: 400; font-size: 13px; color: var(--brass); }
+.muted { color: var(--muted); line-height: 1.4; margin: 8px 0; font-size: 14px; }
+
+button {
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--panel-hi);
+  border: 2px solid var(--shadow);
+  border-radius: 0;
+  padding: 3px 10px;
+  cursor: pointer;
+  box-shadow: inset 2px 2px 0 #3c4460, inset -2px -2px 0 #121420;
+}
+button:hover { background: #2e3448; }
+button:active { box-shadow: inset 2px 2px 0 #121420, inset -2px -2px 0 #3c4460; }
+button.active { background: #1f4a6e; box-shadow: inset 2px 2px 0 #3c7cb0, inset -2px -2px 0 #0c2236; color: #fff; }
+button:disabled { opacity: 0.5; cursor: default; }
+kbd { font: inherit; font-size: 11px; color: var(--muted); margin-right: 6px; }
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  background: var(--panel);
+  border-bottom: 4px solid var(--shadow);
+}
+.group { display: flex; gap: 4px; }
+#stats { display: flex; gap: 16px; color: var(--muted); margin-left: auto; }
+#stats b { color: var(--accent); font-weight: 600; }
+
+main {
+  display: grid;
+  grid-template-columns: minmax(0, 1280px) 300px;
+  gap: 16px;
+  padding: 16px;
+  align-items: start;
+}
+#view {
+  width: 100%;
+  image-rendering: pixelated;
+  border: 2px solid var(--shadow);
+  outline: 2px solid var(--line);
+  cursor: crosshair;
+  display: block;
+}
+aside { display: flex; flex-direction: column; gap: 12px; }
+aside section {
+  background: var(--panel);
+  border: 2px solid var(--shadow);
+  box-shadow: inset 2px 2px 0 var(--line), 4px 4px 0 var(--shadow);
+  padding: 10px;
+}
+.tools { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+
+.levels { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.levels button { text-align: left; }
+.levels button.done::after { content: ' ✓'; color: #7be08a; }
+#goal .goal-label { color: var(--text); margin-bottom: 6px; }
+.meter { height: 10px; background: var(--shadow); border: 2px solid var(--line); margin-bottom: 4px; }
+.meter i { display: block; height: 100%; background: var(--accent); }
+#goal b.ok { color: #7be08a; }
+#goal b.bad { color: #ff8a7a; }
+.solved { margin: 8px 0; padding: 6px 8px; background: #1f4a2c; border: 2px solid #7be08a; color: #d8ffe0; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.hint { font-size: 13px; }
+
+/* ---- Juice ---- */
+.stage { position: relative; }
+#banner {
+  position: absolute; left: 50%; top: 18%;
+  transform: translateX(-50%);
+  pointer-events: none; text-align: center; opacity: 0;
+  font-family: 'Silkscreen', monospace; color: #fff;
+  text-shadow: 3px 3px 0 #05060a, -1px -1px 0 #05060a;
+}
+#banner .big { font-size: 44px; letter-spacing: 2px; }
+#banner .small { font-family: 'Pixelify Sans', monospace; font-size: 18px; margin-top: 6px; color: #d8e8ff; }
+#banner.title-banner { animation: title-in 1.7s steps(17) forwards; color: #9ad8ff; }
+#banner.solved-banner { animation: solved-in 3.2s steps(32) forwards; color: #ffe27a; }
+@keyframes title-in {
+  0% { opacity: 0; transform: translate(-50%, -40px); }
+  15% { opacity: 1; transform: translate(-50%, 6px); }
+  25% { transform: translate(-50%, 0); }
+  80% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, -12px); }
+}
+@keyframes solved-in {
+  0% { opacity: 0; transform: translate(-50%, 0) scale(0.3); }
+  10% { opacity: 1; transform: translate(-50%, 0) scale(1.25); }
+  16% { transform: translate(-50%, 0) scale(0.92); }
+  22% { transform: translate(-50%, 0) scale(1.05); }
+  28% { transform: translate(-50%, 0) scale(1); }
+  85% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -20px) scale(1); }
+}
+.shake { animation: shake 0.35s steps(7); }
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(2px); }
+}
