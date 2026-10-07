@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test:physics": "esbuild tests/physics.ts --bundle --platform=node --log-level=warning --outfile=tests/.build/physics.cjs && node tests/.build/physics.cjs",
     "test:puzzles": "esbuild tests/puzzles.ts --bundle --platform=node --log-level=warning --outfile=tests/.build/puzzles.cjs && node tests/.build/puzzles.cjs",
-    "typecheck:tests": "tsc -p tests"
+    "typecheck:tests": "tsc -p tests",
+    "package": "npm run build && node scripts/package.mjs"
   },
   "devDependencies": {
     "typescript": "^5.6.0",
