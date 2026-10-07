@@ -415,6 +415,7 @@ export const PUZZLES: Level[] = [
     },
   },
   {
+    // NEEDS WORK (playtest feedback, 2026-10-07); see design/puzzles.md.
     name: '9. Meltwater',
     desc: 'A block of ice sits on a shelf, and hot water pours from the left. Fill the marked area with cold water.',
     puzzle: {

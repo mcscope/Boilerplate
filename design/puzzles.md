@@ -83,7 +83,7 @@ Molten wax flows while hot and sets where it cools, so molds shape it.
 
 ### 9. Latent heat: melting absorbs heat
 Ice soaks up a lot of heat as it melts, so water that runs over ice comes off cold.
-- **9. Meltwater:** turn a hot faucet into cold water by running it over an ice block.
+- **9. Meltwater:** turn a hot faucet into cold water by running it over an ice block. ⚠️ **Needs work** (playtest, 2026-10-07).
 
 ---
 
