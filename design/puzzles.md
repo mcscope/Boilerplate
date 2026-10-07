@@ -35,6 +35,7 @@ The order goes from things you can see directly toward hidden quantities:
 7. **Steam pressure:** what heat can push.
 8. **Solidification:** what liquids become when they cool.
 9. **Latent heat:** what melting costs.
+10. **Mixtures (advanced):** pulling apart liquids that mix.
 
 ## The chapters
 
@@ -65,8 +66,7 @@ Liquids layer by density, so a tank can sort them, and whatever floats on top ca
 Fire heats, water boils, and steam condenses on cool surfaces.
 - **5. Kindling:** a wood fire under a pot.
 - **5b. Still:** boil, then catch the condensed steam in another beaker.
-- **5c. Column Still:** separate alcohol from a mash. A pot still only gets partway; a tall column that refluxes concentrates it. (Alcohol vapor is flammable.)
-- **5d. Muddy Still:** distillation leaves the dirt behind. Combines heat with suspension (ch. 3).
+- **5c. Muddy Still:** distillation leaves the dirt behind. Combines heat with suspension (ch. 3).
 
 ### 6. Combustion: fire spreads
 Fire travels along fuel and through the air. One spark has to reach everything.
@@ -85,6 +85,11 @@ Molten wax flows while hot and sets where it cools, so molds shape it.
 ### 9. Latent heat: melting absorbs heat
 Ice soaks up a lot of heat as it melts, so water that runs over ice comes off cold.
 - **9. Meltwater:** turn a hot faucet into cold water by running it over an ice block. ⚠️ **Needs work** (playtest, 2026-10-07).
+
+
+### 10. Mixtures (advanced)
+Liquids that mix can still be pulled apart by how readily each one boils. Builds on heat (ch. 5).
+- **10. Column Still:** concentrate alcohol out of a mash. A pot still only gets partway; a tall column where vapor partly condenses and drips back makes it stronger with each stage. Alcohol vapor is flammable.
 
 ---
 

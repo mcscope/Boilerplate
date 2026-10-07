@@ -57,7 +57,8 @@ let lastGoalHtml = '';
 const solved = new Set<string>();
 /** Puzzles that were renumbered: old saved name → current name, so solved marks and bests carry over. */
 const RENAMED: Record<string, string> = {
-  '5c. Muddy Still': '5d. Muddy Still',
+  '5d. Muddy Still': '5c. Muddy Still',
+  '5c. Column Still': '10. Column Still',
   '5d. Fire Bomb': '6. Fire Bomb',
   '6. Steam Pump': '7. Steam Pump',
   '6a. Water Bridge': '7a. Water Bridge',
