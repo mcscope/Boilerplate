@@ -318,12 +318,12 @@ export const PUZZLES: Level[] = [
         '..################################..',
         ],
       },
-      tools: { wall: Infinity, heater: Infinity },
+      tools: { wall: Infinity },
       hint: 'Wax sets as it cools. Build a mold around the shape with a channel into the top, and leave the air a way out as the wax fills it.',
       noBuild: [{ i0: 12, j0: 0, i1: 21, j1: 10 }], // around the pipe
     },
     build: b => {
-      b.solid(52, 86, 108, 87); // plinth under the statue
+      b.heater(52, 86, 108, 87, 52); // warm plinth: just under the wax setting point (55°), so wax sets slowly from the base
       b.drain(1, 88, 158, 88);
       b.faucet(30, 6, 4, 40, true, WAX, 0, 290);
     },
