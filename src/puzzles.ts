@@ -107,18 +107,18 @@ export const PUZZLES: Level[] = [
   },
   {
     name: '2c. Overpressure',
-    desc: 'The beaker is high up and out of reach. Below it, a fountainhead points up from the middle of the room. Fill the beaker.',
+    desc: 'The beaker is high up and out of reach. The faucet\'s pipe only comes down to the middle of the room. Fill the beaker.',
     puzzle: {
       goal: { zone: { i0: 116, j0: 12, i1: 136, j1: 22 }, kind: WATER, amount: 150, label: '150 water in the high beaker' },
       tools: { wall: Infinity },
-      hint: 'Water shoots out of a nozzle when the water below it is pushed hard. Seal the nozzle\'s bottom in, and press on the water there from higher up.',
-      noBuild: [{ i0: 104, j0: 1, i1: 158, j1: 44 }], // the beaker and everything above the fountainhead
+      hint: 'A tall column of water presses hard on whatever is at its bottom. Seal the pipe\'s end into a chamber, and the pressure can push water up and out somewhere else.',
+      noBuild: [{ i0: 104, j0: 1, i1: 158, j1: 44 }], // around the beaker
     },
     build: b => {
-      // High beaker, its left wall right beside the fountainhead's line.
+      // High beaker.
       b.solid(114, 12, 115, 24); b.solid(137, 8, 138, 24); b.solid(114, 23, 138, 24);
-      // Fountainhead: a short upright nozzle (interior i 111..112), mouth at mid-height, open at the bottom.
-      b.solid(110, 45, 110, 56); b.solid(113, 45, 113, 56);
+      // The faucet's pipe (interior i 20..21): from the top down to the middle of the room, open at the bottom.
+      b.solid(19, 1, 19, 45); b.solid(22, 1, 22, 45);
       b.drain(1, 88, 158, 88);
       b.faucet(40, 6, 4, 100, true, WATER);
     },
