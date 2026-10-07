@@ -2,95 +2,118 @@
 
 ## How a puzzle works
 
-- **Fixed world.** Each puzzle has locked terrain (dark stone, can't be erased), a source (faucet, tank, oil drum) and a **goal**.
-- **Limited parts.** You place items from a small inventory: wall segments, ice blocks, wax blocks, candles, valves, and so on. Tools like Fire and Chill appear only when a puzzle grants them, each with a number of uses or seconds.
-- **Goal zones** are beakers with a fill line and a condition, for example:
-  - *30 units of water*
-  - *oil only*
-  - *water above 60°*
-  - *hold it full for 5 seconds*
-- **Run, then judge.** You build with time paused, press Run, and the simulation decides. If it fails, you rewind and adjust, as in Zachtronics games.
-- **Scores:** parts used, time to solve, and heat spent (energy). Histograms compare you with other players.
-
-Each act introduces one material or phenomenon, starting with the most obvious use and building toward combinations. Every puzzle teaches one idea. Later puzzles combine ideas you already know.
-
----
-
-## Act 1: Water and pressure
-
-| # | Puzzle | Goal | You get | Idea it teaches |
-|---|---|---|---|---|
-| 1 | **First Pour** | Fill the beaker | 4 wall segments | Water falls and flows; walls make chutes. |
-| 2 | **Same Level** | Fill a beaker whose rim is behind a wall, so it can't be poured into from above | 3 walls | Communicating vessels: build a U-tube and the water rises on the far side. |
-| 3 | **Over the Hill** | Move a tank's water over a ridge higher than the beaker | A primed hose to route, 2 walls | Siphons: the outlet must end lower than the source surface. |
-| 4 | **The Greedy Cup** | Keep water out of the beaker until the cup is full, then deliver it all at once | Walls only | Build a Pythagorean cup: the crest height sets when it fires. |
-| 5 | **Air Lock** | Fill a sealed bottle through its neck | 1 wall, 1 eraser | Trapped air resists. You have to give it a way out (a vent). |
-| 6 | **Hero's Fountain** | Lift water *higher than its source* with no heat at all | Walls | Falling water compresses air in a sealed chamber, and that air pushes water up somewhere else. Pure pneumatics. |
-
-## Act 2: Oil (density and fire)
-
-| # | Puzzle | Goal | You get | Idea it teaches |
-|---|---|---|---|---|
-| 7 | **Skimmer** | A pipe delivers an oil-and-water mix. Water goes to the left beaker, oil to the right | 3 walls | Density separation: bottom outlet for water, top overflow for oil. |
-| 8 | **Light the Way** | Raise a thermometer above 200° | One spark, an oil puddle out of reach | Oil must flow to the heat and touch air to burn. Fire spreads along a slick. |
-| 9 | **Smother** | A burning slick is creeping toward a wax beaker; save it | A faucet you can aim, 2 walls | Oil floats, so water can't drown it. Cut the oil off with a wall or sink it. Fire needs air. |
-| 10 | **Oil Lamp** | Keep the thermometer above 150° for 20 s with only 40 units of oil | Walls | Rationing fuel: a narrow wick-like channel feeds a slow burn. |
-
-## Act 2½: Mud (suspension, settling, erosion)
-
-Silt rides along in moving water, drops out where the water is calm, and builds up as solid mud. Fast water wears mud away. Mud is a material with a *history*: the terrain changes depending on how you've run the water.
-
-| # | Puzzle | Goal | You get | Idea it teaches |
-|---|---|---|---|---|
-| M1 | **Clear Water** | Fill the beaker with water below 10% turbidity from a muddy source | 4 walls | Settling: slow the flow down (wide basins, low walls) so the silt drops out before the outlet. |
-| M2 | **Dig a Channel** | A mud bank blocks the path to the beaker | A faucet you can aim | Erosion: a fast, narrow jet carves mud away; a slow, wide flow just deposits more. |
-| M3 | **Self-Building Dam** | Raise the water level behind a gap until it reaches a high outlet | Muddy faucet, 2 walls | Let silt settle *in the gap* until it seals itself: mud as a slow building material. |
-| M4 | **Still Water** | Get clean water out of a pot of mud | Burner, ice | Distillation: boiling leaves the silt behind. |
-
-## Act 3: Solid phases (ice and wax)
-
-| # | Puzzle | Goal | You get | Idea it teaches |
-|---|---|---|---|---|
-| 11 | **Thaw** | An ice plug blocks the drain; get the water to the beaker | One candle (wax that burns slowly) | Heat flows: the candle has to sit close to the ice and be sheltered. Ice holds at 0° while it melts, so it takes time. |
-| 12 | **Freeze the Leak** | A cracked tank leaks; fill the beaker above it instead | Chill (3 seconds) | You can only freeze water that's there. Let it leak into the crack first, then freeze it there. |
-| 13 | **Wax Seal** | Same cracked tank, no Chill | A wax block, a candle | Molten wax flows and sets below 55°. Melt the wax *above* the crack so it runs in and seals itself. Too much heat and it never sets. |
-| 14 | **Hourglass** | Deliver water to the beaker *only after* the oil lamp has burned for 10 s | Wax plug, candle, walls | A wax plug as a timer: its thickness and how far it sits from the heat set the delay. |
-| 15 | **Floating Lid** | Keep a hot water bath above 60° long enough | Wax | Molten wax floats on water and sets into an insulating lid. |
-
-## Act 4: Steam
-
-| # | Puzzle | Goal | You get | Idea it teaches |
-|---|---|---|---|---|
-| 16 | **Kettle** | Fill a beaker on the far side of a sealed wall | Oil burner, 1 ice block | Distillation: boil, let the steam rise over the wall, and condense it on a cold surface (the ice) so it drips into the beaker. |
-| 17 | **Pressure Cooker** | Push boiler water up a pipe into a high beaker | Walls, wax | The boiler leaks. Seal it (walls, or wax that melts into the gaps) or the steam escapes and nothing builds. |
-| 18 | **Relief Valve** | Same boiler, but the beaker has a fragile glass rim that breaks above pressure X | Wax plug | A wax plug in a vent pipe melts at the right temperature and acts as a safety valve. |
-| 18½ | **Grease Fire** | Put out a burning pan of oil | A lid (wall), a bucket of water, sand (mud) | Water on burning oil sinks, flash-boils, and blasts burning droplets everywhere: more surface, bigger fire. Smother it instead (lid or mud) so no air reaches it. |
-| 19 | **Geyser** | Deliver water in three separate pulses | Walls, burner | A heated chamber with a U-trap builds pressure, blows out, refills and repeats: a self-timing loop. |
-| 20 | **Steam Siphon** | Start a siphon that can't be primed by hand | Burner, walls | Steam fills the hose and then condenses, and the vacuum it leaves pulls water over the crest. Everything learned so far, combined. |
-
-## Act 5: Machines (once simple machines exist)
-
-These need new parts, listed below. The puzzles combine fluids with mechanics.
-
-- **Float valve:** a float rises with the water and closes an inlet. Goal: keep a tank at exactly the line while the faucet runs.
-- **Bucket seesaw:** water fills a bucket, it tips, and the tip opens a gate. Goal: sequence three gates.
-- **Piston engine:** steam pushes a piston and the piston lifts a weight. Goal: lift the weight 3 times (needs a condensing stroke).
-- **Water wheel:** flow turns a wheel, which turns a pump. Goal: pump water up a level using only falling water.
-- **Thermostat:** a wax piston (wax expands when it melts) moves a valve. Goal: hold a bath at 70° ± 5°.
+- **Fixed world.** Each puzzle has locked terrain (level stone and other level-made solids can't be erased), a source (faucet, tank, block of material) and a **goal**. Some areas are no-build zones.
+- **Unlimited materials.** Walls and any other granted building materials are unlimited. How many you use is the score, not a constraint, because scarce materials were frustrating. Puzzles are constrained by space and physics instead. The one rationed resource is **fire**: a fraction of a second, so a puzzle's single spark is a real decision.
+- **Goals** are drawn in the world, and each must hold for 2 seconds:
+  - an amount of a liquid in a zone, optionally with purity, dirt and temperature limits
+  - a zone filled with settled mud
+  - a shape cast in solid wax
+  - all the wood burned
+  - several goals at once
+- **Two modes.**
+  - **Locked:** build while paused; once it runs, building is locked until Reset.
+  - **Live:** edit while it runs.
+- **Rules for every puzzle:**
+  - It must not solve itself if the player does nothing.
+  - The description states the situation and the goal only; how the physics works goes in the hidden hint.
+  - Hints never contain a specific player's solution.
+- **No Chill.** The game doesn't have a cooling tool. Cold comes from physics: ice, melting, ambient air.
 
 ---
 
-## What needs building to support this
+## How the chapters are organized
 
-1. **Puzzle framework:** locked terrain, part inventories, goal beakers (fill line, liquid filter, temperature, duration), win detection, build-pause then Run, and rewind.
-2. **New placeables:**
-   - **Candle:** a block of wax with a wick that is always burning.
-   - **Burner:** a fixed heat source with an on/off switch, so puzzles don't depend on burning oil.
-   - **Thermometer:** a sensor.
-3. **Glass:** a solid you can see through. Useful for showing hidden siphons and boilers, and could crack under pressure or heat shock.
-4. **Saltwater or dye (optional):** makes distillation (#16) visibly "clean" water from dirty.
-5. **Rigid bodies** for Act 5, and for **floating ice**: solid shapes that move, rotate, collide, and get pushed by water pressure. Ice that forms in open water would break off as floating chunks; wax lids would bob. Floats, pistons and wheels all build on the same system.
+**Each number is one physical principle.** The plain-numbered puzzle is the cleanest demonstration of that principle. Lettered puzzles (*a*, *b*, *c*) are harder versions of it, or combine it with a principle from an earlier chapter. So a player who has solved chapter *n* understands one more piece of physics, and later chapters can assume it.
 
-## Order to build
+The order goes from things you can see directly toward hidden quantities:
+1. **Motion:** where water goes when it falls and flows.
+2. **Pressure:** what water and air push on.
+3. **Suspension:** what water carries.
+4. **Density:** what floats on what.
+5. **Heat:** what temperature changes.
+6. **Combustion:** what burns.
+7. **Steam pressure:** what heat can push.
+8. **Solidification:** what liquids become when they cool.
+9. **Latent heat:** what melting costs.
 
-Start the framework with Act 1 (#1–#4). Those puzzles already work with the current simulation and will prove out the build → Run → check loop. Then Act 3 #11–#13 (needs candles), Act 2, and Act 4. Act 5 waits until rigid bodies exist.
+## The chapters
+
+### 1. Momentum: water moves
+Water falls, flows down slopes and carries speed. Walls shape where it goes.
+- **1. First Pour:** build a chute from the faucet to the beaker.
+- **1b. Long Shot:** you can't build near the target, so the water has to leave a ramp fast enough to fly across.
+
+### 2. Pressure: water and air push
+Liquid finds its level (connected vessels, siphons), and air is a real gas that compresses and pushes back.
+- **2. Same Level:** connected vessels: water rises on the far side of a U-tube.
+- **2b. Over the Top:** a siphon carries water over a rim higher than the beaker.
+- **2c. Hero's Fountain:** falling water squeezes trapped air, and the air lifts water higher than its source. No heat at all.
+
+### 3. Suspension: water carries mud
+Fast water carries silt; calm water drops it, and it builds up as mud.
+- **3. Clear Water:** settle muddy water until it's clean enough.
+- **3b. Muddy Waters:** the same, with harder space and flow.
+- **3c. Mud Pit:** the reverse: collect the silt to fill a shaft with solid mud.
+
+### 4. Density: oil floats
+Liquids layer by density, so a tank can sort them, and whatever floats on top can be lifted.
+- **4. Skimmer:** collect only oil from a mixed stream.
+- **4a. Separator:** send oil one way and water the other.
+- **4c. Oil Lamp:** pour water in under oil to lift the oil to a wick, then burn it to heat a kettle. Combines density with heat (ch. 5).
+
+### 5. Heat: boiling and condensing
+Fire heats, water boils, and steam condenses on cool surfaces.
+- **5. Kindling:** a wood fire under a pot.
+- **5b. Still:** boil, then catch the condensed steam in another beaker.
+- **5c. Muddy Still:** distillation leaves the dirt behind. Combines heat with suspension (ch. 3).
+
+### 6. Combustion: fire spreads
+Fire travels along fuel and through the air. One spark has to reach everything.
+- **6. Fire Bomb:** burn six scattered wood bundles with a single ignition. Burning oil, and the steam blast of water hitting burning oil, can carry the fire.
+
+### 7. Steam pressure: heat pushes
+Steam in a sealed space builds pressure and does work.
+- **7. Steam Pump:** steam pressure pushes water up and out of a sealed boiler.
+- **7a. Water Bridge:** steam pushes water, and that water pushes oil up a riser. Combines pressure with density (ch. 2 and 4).
+
+### 8. Solidification: liquids set into shapes
+Molten wax flows while hot and sets where it cools, so molds shape it.
+- **8. Casting:** build a mold and cast a statue from poured wax.
+- **8a. Pawn:** melt a wax block with a wood fire, without burning it, and cast a pawn. Combines solidification with heat (ch. 5).
+
+### 9. Latent heat: melting absorbs heat
+Ice soaks up a lot of heat as it melts, so water that runs over ice comes off cold.
+- **9. Meltwater:** turn a hot faucet into cold water by running it over an ice block.
+
+---
+
+## Backlog, by chapter
+
+Ideas not built yet, filed where they would teach.
+
+- **Ch. 2, Pressure**
+  - **The Greedy Cup:** build a Pythagorean cup that holds water back, then delivers it all at once.
+  - **Air Lock:** fill a sealed bottle; the trapped air needs a vent.
+  - **Diving Bell:** keep a zone dry underwater with trapped air. Needs a "keep dry" goal.
+- **Ch. 3, Suspension**
+  - **Dig a Channel:** a fast, narrow jet erodes a mud bank.
+  - **Self-Building Dam:** silt seals a gap until the water rises to an outlet.
+  - **Flash Flood:** in Locked mode, a mud dam that fails under pressure releases a surge.
+  - **Levee:** keep a zone dry with mud alone.
+- **Ch. 6, Combustion**
+  - **Long Fuse:** one spark in a corner, a target across the map.
+  - **Smother:** stop a creeping oil fire without water.
+- **Ch. 7, Steam pressure**
+  - **Relief Valve:** a wax plug melts at the right moment and acts as a safety valve.
+  - **Geyser:** a heated U-trap that pulses on its own.
+  - **Steam Siphon:** steam fills a hose, condenses, and the vacuum starts the siphon.
+- **Ch. 8, Solidification**
+  - **Wax Seal:** melt wax above a crack so it runs in and seals it.
+  - **Hourglass:** a wax plug as a timer.
+  - **Floating Lid:** molten wax sets into an insulating lid on hot water.
+- **Ch. 9, Latent heat**
+  - **Thaw:** melt an ice plug with heat routed from far away.
+- **Dropped:** anything needing Chill (Freeze the Leak, Ice Sculpture, Cold Snap).
+
+### Ch. 10 and later: machines (once rigid bodies exist)
+Moving solids open a new layer: float valves, bucket seesaws, piston engines, water wheels, wax thermostats, and the lava lamp. See [rigid-bodies.md](rigid-bodies.md).

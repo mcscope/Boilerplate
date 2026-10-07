@@ -274,7 +274,7 @@ export const PUZZLES: Level[] = [
     },
   },
   {
-    name: '5d. Fire Bomb',
+    name: '6. Fire Bomb',
     desc: 'Six bundles of wood sit on ledges around the room. Burn every last one, with a single spark.',
     puzzle: {
       goal: { zone: { i0: 1, j0: 1, i1: 158, j1: 87 }, kind: WATER, amount: 176, burn: true, label: 'Burn all the wood (176 cells)' },
@@ -294,7 +294,7 @@ export const PUZZLES: Level[] = [
     },
   },
   {
-    name: '6. Steam Pump',
+    name: '7. Steam Pump',
     desc: 'A sealed boiler with one hole in its side, and a cup far above it. Get the boiler\'s water into the cup.',
     puzzle: {
       goal: { zone: { i0: 120, j0: 12, i1: 141, j1: 28 }, kind: WATER, amount: 120, label: 'Lift 120 water into the high cup' },
@@ -316,7 +316,7 @@ export const PUZZLES: Level[] = [
     },
   },
   {
-    name: '6a. Water Bridge',
+    name: '7a. Water Bridge',
     desc: 'The same tanks, but nothing connects the boiler to the oil.',
     puzzle: {
       goal: { zone: { i0: 120, j0: 32, i1: 139, j1: 40 }, kind: OIL, amount: 120, minPurity: 0.85, label: '120 oil in the cup, at least 85% pure' },
@@ -326,7 +326,7 @@ export const PUZZLES: Level[] = [
     build: b => { oilPress(b, { waterPipe: false, crack: false, riser: true }); b.drain(1, 88, 158, 88); },
   },
   {
-    name: '7. Casting',
+    name: '8. Casting',
     desc: 'Hot molten wax pours from the left. Cast the statue: fill the marked shape with solid wax.',
     puzzle: {
       goal: {
@@ -381,7 +381,7 @@ export const PUZZLES: Level[] = [
     },
   },
   {
-    name: '7a. Pawn',
+    name: '8a. Pawn',
     desc: 'A block of wax sits on a shelf. Melt it and cast a chess pawn: fill the marked shape with solid wax.',
     puzzle: {
       goal: {
@@ -417,7 +417,7 @@ export const PUZZLES: Level[] = [
     },
   },
   {
-    name: '8. Meltwater',
+    name: '9. Meltwater',
     desc: 'A block of ice sits on a shelf, and hot water pours from the left. Fill the marked area with cold water.',
     puzzle: {
       goal: { zone: { i0: 120, j0: 66, i1: 140, j1: 85 }, kind: WATER, amount: 300, maxTemp: 25, label: '300 water at 25° or colder' },

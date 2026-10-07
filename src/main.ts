@@ -55,7 +55,17 @@ let solvedShown = false;
 let hintShown = false;
 let lastGoalHtml = '';
 const solved = new Set<string>();
-try { for (const n of JSON.parse(localStorage.getItem('solved') ?? '[]')) solved.add(n); } catch { /* storage unavailable */ }
+/** Puzzles that were renumbered: old saved name → current name, so solved marks and bests carry over. */
+const RENAMED: Record<string, string> = {
+  '5d. Fire Bomb': '6. Fire Bomb',
+  '6. Steam Pump': '7. Steam Pump',
+  '6a. Water Bridge': '7a. Water Bridge',
+  '7. Casting': '8. Casting',
+  '7a. Pawn': '8a. Pawn',
+  '8. Meltwater': '9. Meltwater',
+};
+const currentName = (n: string) => RENAMED[n] ?? n;
+try { for (const n of JSON.parse(localStorage.getItem('solved') ?? '[]')) solved.add(currentName(n)); } catch { /* storage unavailable */ }
 let tool: Tool = 'water';
 let brushIndex = 1; // 6px
 let paused = false;
@@ -164,7 +174,12 @@ interface Best { time: number; parts: number }
 type BestStore = Record<string, Record<string, Best>>;
 
 function loadBests(): BestStore {
-  try { return JSON.parse(localStorage.getItem('bests') ?? '{}') as BestStore; } catch { return {}; }
+  try {
+    const store = JSON.parse(localStorage.getItem('bests') ?? '{}') as BestStore;
+    for (const mode of Object.values(store)) for (const old of Object.keys(mode))
+      if (RENAMED[old] && !mode[RENAMED[old]]) { mode[RENAMED[old]] = mode[old]; delete mode[old]; }
+    return store;
+  } catch { return {}; }
 }
 
 // Stored under 'unified:<mode>' (the engine's name from when there were two), so earlier bests carry over.

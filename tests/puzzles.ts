@@ -48,7 +48,7 @@ const torch = (x: number, y: number, frames = 24) => (frame: number, fire: Fire)
 const castingChute = (spend: Spend) => { for (let i = 12; i <= 77; i++) { const j = Math.round(22 + (i - 12) * 0.25); spend(STONE, 'wall', i, j, i, j + 1); } };
 
 const SOLUTIONS: Record<string, Solution[]> = {
-  '7. Casting': [{
+  '8. Casting': [{
     label: 'full mold + sprue', expect: 'solve', seconds: 300,
     build: (spend, w) => {
       const goal = w.level!.puzzle!.goal, z = goal.zone, shape = goal.shape!;
@@ -127,7 +127,7 @@ const SOLUTIONS: Record<string, Solution[]> = {
     label: 'fire only, no hood', expect: 'fail',
     act: torch(118, 158),
   }],
-  '6a. Water Bridge': [{
+  '7a. Water Bridge': [{
     label: 'dip tube + pipe to the oil tank', expect: 'solve',
     build: spend => {
       spend(STONE, 'wall', 44, 42, 48, 42); spend(STONE, 'wall', 44, 43, 44, 58); spend(STONE, 'wall', 48, 46, 48, 58); // dip tube inside the boiler
@@ -137,7 +137,7 @@ const SOLUTIONS: Record<string, Solution[]> = {
     },
     act: torch(70, 147),
   }],
-  '6. Steam Pump': [{
+  '7. Steam Pump': [{
     label: 'dip tube below the waterline', expect: 'solve',
     stale: 'crossover spills outside the cup wall (i=117 vs cup at 118)',
     build: spend => {
