@@ -180,6 +180,31 @@ export const PUZZLES: Level[] = [
     },
   },
   {
+    name: '4c. Oil Lamp',
+    desc: 'An oil lamp: oil floats on water in a sealed tank, and a wick hangs in its neck, out of reach of the oil. Warm the kettle above it to 60°.',
+    puzzle: {
+      goal: { zone: { i0: 40, j0: 20, i1: 50, j1: 29 }, kind: WATER, amount: 150, minTemp: 60, label: 'Kettle water (150+) at 60°' },
+      tools: { wall: Infinity, fire: 0.4 },
+      hint: 'Water sinks under oil, so adding water lifts the oil. Watch where the oil can escape before it reaches the wick.',
+      noBuild: [{ i0: 116, j0: 0, i1: 125, j1: 10 }], // around the pipe
+    },
+    build: b => {
+      // Lamp tank: water below, a layer of oil on top. Roof openings: the neck (with the wick) and a fill hole.
+      b.solid(28, 48, 29, 82); b.solid(61, 48, 62, 82); b.solid(28, 81, 62, 82);
+      b.solid(28, 48, 43, 49); b.solid(47, 48, 56, 49); b.solid(60, 48, 62, 49);
+      b.water(30, 66, 60, 80);
+      b.oil(30, 56, 60, 65);
+      // Neck, and a wood wick whose bottom sits well above the oil.
+      b.solid(42, 38, 43, 49); b.solid(47, 38, 48, 49);
+      b.wood(45, 34, 45, 42);
+      // Kettle above the wick.
+      b.solid(38, 18, 39, 31); b.solid(51, 18, 52, 31); b.solid(38, 30, 52, 31);
+      b.water(40, 22, 50, 29);
+      b.drain(1, 88, 158, 88);
+      b.faucet(240, 6, 4, 80, true, WATER);
+    },
+  },
+  {
     name: '5. Kindling',
     desc: 'Warm the pot of water to 70°.',
     puzzle: {
