@@ -17,8 +17,8 @@ import { MUD, NONE, Thermo } from './thermo';
  */
 
 const SUSPEND_SPEED = 140; // px/s: at this flow speed and above, turbulence keeps silt fully suspended
-const SETTLE_RATE = 2.5; // fraction of a cell's silt that drops to the cell below per second, in still water
-const DEPOSIT_RATE = 1.0; // fraction per second that settles onto a bed below
+const SETTLE_RATE = 3; // fraction of a cell's silt that drops to the cell below per second, in still water
+const DEPOSIT_RATE = 1.2; // fraction per second that settles onto a bed below
 export const CELL_OF_MUD = 12; // silt that fills one cell with solid mud (a fully muddy particle carries 1)
 const ERODE_SPEED = 110; // px/s of flow past mud before it starts wearing away
 const ERODE_RATE = 4; // cells per second eroded at twice ERODE_SPEED

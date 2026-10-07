@@ -153,8 +153,8 @@ export const PUZZLES: Level[] = [
     name: '3c. Mud Pit',
     desc: 'Muddy water pours from the faucet. Fill the tall marked shaft with solid mud.',
     puzzle: {
-      // The shaft is 6 cells wide and 36 tall (216 cells); 90% of it has to be mud.
-      goal: { zone: { i0: 112, j0: 50, i1: 117, j1: 85 }, kind: WATER, amount: 195, mud: true, label: 'Fill the shaft with mud (195 of 216 cells)' },
+      // The shaft is 6 cells wide and 24 tall (144 cells); 90% of it has to be mud.
+      goal: { zone: { i0: 112, j0: 62, i1: 117, j1: 85 }, kind: WATER, amount: 130, mud: true, label: 'Fill the shaft with mud (130 of 144 cells)' },
       tools: { wall: Infinity },
       hint: 'Mud only builds up where silty water sits still. Water plunging straight in keeps the silt stirred up; let it calm down in the shaft and let the cleared water spill away.',
     },
