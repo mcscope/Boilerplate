@@ -11,6 +11,7 @@
  */
 import { CELL, CUP_INTERIOR, LEVELS, NX } from '../src/world';
 import { OIL, WATER } from '../src/sim/fluid';
+import { phaseLedger } from '../src/sim2/phase';
 import {
   Args, Expect, ascii, RESULT_TAG, Result, builder, countIn, fmt, gasCellsIn, gasTotals, holdTemp, kindCounts,
   loadWorld, maxSpeed, mean, openCells, parseArgs, percentile, seedRandom, rect, report, run, runParallel, surfaceFromCount, ysIn,
@@ -339,7 +340,9 @@ const SCENARIOS: Scenario[] = [
         b.solid(38, 28, 122, 30); b.solid(38, 80, 122, 82); b.solid(38, 28, 40, 82); b.solid(120, 28, 122, 82);
         b.water(41, 50, 70, 79);
       });
-      const liquid = () => kindCounts(w).total;
+      // Liquid in particles, less what the phase ledger says the particles still owe (mass already moved to vapor),
+      // plus condensate not yet gathered into a whole particle (fine mist): all of it is real mass.
+      const liquid = () => kindCounts(w).total - phaseLedger().mass * w.fluid.restDensity;
       const tot = () => { const g = gasTotals(w, box); return { liq: liquid(), vap: g.vapor, air: g.air }; };
       run(w, 0.1); // let the air region be labelled
       const a = tot();
@@ -356,7 +359,7 @@ const SCENARIOS: Scenario[] = [
       const airDrift = a.air !== null && b.air !== null ? b.air / a.air - 1 : null;
       return {
         pass: worst <= 0.01 && (airDrift === null || worstAir <= 0.01),
-        metric: `liquid+vapor ${a.liq}+${fmt(a.vap)} -> ${b.liq}+${fmt(b.vap)} (${(100 * drift).toFixed(2)}%, worst ${(100 * worst).toFixed(2)}%)`
+        metric: `liquid+vapor ${fmt(a.liq)}+${fmt(a.vap)} -> ${fmt(b.liq)}+${fmt(b.vap)} (${(100 * drift).toFixed(2)}%, worst ${(100 * worst).toFixed(2)}%)`
           + (airDrift === null ? ', air n/a' : `, air ${(100 * airDrift).toFixed(2)}% (worst ${(100 * worstAir).toFixed(2)}%)`),
         threshold: 'liquid+vapor and air each within 1% at every frame over 30 s',
       };

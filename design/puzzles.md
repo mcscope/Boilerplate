@@ -3,7 +3,7 @@
 ## How a puzzle works
 
 - **Fixed world.** Each puzzle has locked terrain (level stone and other level-made solids can't be erased), a source (faucet, tank, block of material) and a **goal**. Some areas are no-build zones.
-- **Unlimited materials.** Walls and any other granted building materials are unlimited. How many you use is the score, not a constraint, because scarce materials were frustrating. Puzzles are constrained by space and physics instead. The one rationed resource is **fire**: a fraction of a second, so a puzzle's single spark is a real decision.
+- **Unlimited materials.** Walls and any other granted building materials are unlimited. How many you use is the score, not a constraint, because scarce materials were frustrating. Puzzles are constrained by space and physics instead. The one rationed resource is **fire**: 2 seconds per puzzle, enough to light things but not to cook them with the torch.
 - **Goals** are drawn in the world, and each must hold for 2 seconds:
   - an amount of a liquid in a zone, optionally with purity, dirt and temperature limits
   - a zone filled with settled mud

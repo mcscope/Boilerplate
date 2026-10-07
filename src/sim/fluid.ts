@@ -39,6 +39,15 @@ function particleDensity(kind: number, temp: number, silt: number, alc: number) 
  */
 const GHOST_SIDE = 3 / 32, GHOST_DIAG = 1 / 64;
 
+/**
+ * Drift flux: the pressure solve sees density per cell, so a particle sharing a cell with heavier or lighter liquid
+ * feels no force relative to it. In a mixture model each phase instead slips through the mix at its terminal
+ * velocity, (ρ_p − ρ_mix)/ρ_mix · g · SLIP_TIME: oil rises out of water, hot water rises through cold. It moves the
+ * particle without adding to its velocity. Silt is left out: the sediment model handles settling.
+ */
+const SLIP_TIME = 0.05; // s
+const MAX_SLIP = 40; // px/s
+
 /** Surface tension: how strongly nearby particles of the same liquid pull together, and out to what distance (in radii). */
 const COHESION = 0.08;
 const COHESION_RANGE = 3.5;
@@ -264,11 +273,17 @@ export abstract class Fluid {
    */
   protected integrate(dt: number) {
     const g = this.params.gravity, maxStep = 0.5 * this.h;
+    const { nx, ny, inv } = this;
     for (let k = 0; k < this.count; k++) {
       let x = this.pos[2 * k], y = this.pos[2 * k + 1];
       let vx = this.vel[2 * k], vy = this.vel[2 * k + 1];
-      const steps = Math.max(1, Math.ceil((Math.abs(vx) + Math.abs(vy)) * dt / maxStep));
-      const sx = (vx * dt) / steps, sy = (vy * dt) / steps;
+      // Slip relative to the cell's mix (drift flux), positive = down for a heavier particle.
+      const c = clampi(Math.floor(x * inv), 0, nx - 1) + clampi(Math.floor(y * inv), 0, ny - 1) * nx;
+      const rhoC = this.cellRho[c];
+      let slip = rhoC > 0 ? ((particleDensity(this.kind[k], this.temp[k], 0, this.alc[k]) - rhoC) / rhoC) * g * SLIP_TIME : 0;
+      slip = slip > MAX_SLIP ? MAX_SLIP : slip < -MAX_SLIP ? -MAX_SLIP : slip;
+      const steps = Math.max(1, Math.ceil((Math.abs(vx) + Math.abs(vy + slip)) * dt / maxStep));
+      const sx = (vx * dt) / steps, sy = ((vy + slip) * dt) / steps;
       let hitX = false, hitY = false;
       for (let n = 0; n < steps; n++) {
         if (!hitX) { if (this.solidAt(x + sx, y)) hitX = true; else x += sx; }
