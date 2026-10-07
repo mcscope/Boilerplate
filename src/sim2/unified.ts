@@ -186,6 +186,9 @@ export class UnifiedFluid extends Fluid {
       // 5. One projection for liquid and gas. FLIP picks up only what the projection changes.
       this.prevU.set(u);
       this.prevV.set(v);
+      // Wall faces were zeroed after P2G: that correction is part of the projection too, so FLIP must see it.
+      const { prevU, prevV, wallU, wallV } = this;
+      for (let c = 0; c < prevU.length; c++) { prevU[c] += wallU[c]; prevV[c] += wallV[c]; }
       this.projectOptions.dt = sdt;
       this.lastProject = project(this, this.gasState, this.liquid, this.projectOptions, this.pressure);
 

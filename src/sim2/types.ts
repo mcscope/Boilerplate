@@ -77,7 +77,7 @@ export interface GasState {
 export interface LiquidFields {
   /** Mass density of the liquid in each liquid cell (water 1, oil 0.7, wax 0.9, adjusted for temperature and silt). */
   rho: Float32Array;
-  /** Particle density per cell (particle count, bilinear), for volume-drift compensation. */
+  /** Particle density per cell (particle count, bilinear; adjacent walls count as liquid at rest), for volume-drift compensation. */
   density: Float32Array;
   /** Rest particle density (particles per cell at rest). */
   restDensity: number;
