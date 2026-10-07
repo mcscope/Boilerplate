@@ -17,6 +17,8 @@ export const BOIL = 100;
 export const IGNITE = 250;
 export const WAX_MELT = 60;
 export const WAX_SET = 55;
+/** Particles in one cell of ice or solid wax: a melting cell releases this many, a setting cell consumes this many. */
+export const PHASE_PARTICLES = 4;
 const WAX_IGNITE = 300;
 
 /** Solid materials per cell. */
@@ -475,16 +477,35 @@ export class Thermo {
       else if (T[c] < WAX_SET && this.cntWax[c] > this.cnt[c] / 2) freeze.set(c, WAX);
     }
     if (freeze.size) {
-      for (const [c, kind] of freeze) { mat[c] = kind === WATER ? ICE : WAX_SOLID; f.s[c] = 0; this.melt[c] = 0; }
-      for (let k = f.count - 1; k >= 0; k--) {
-        const kind = freeze.get(this.cellAt(f.pos[2 * k], f.pos[2 * k + 1]));
-        if (kind !== undefined && f.kind[k] === kind) f.removeParticle(k);
+      // A solid cell is made of exactly PHASE_PARTICLES particles, the same number a melting cell gives back, so
+      // melting and setting conserve material. They're gathered from the cell and its neighbours, nearest first;
+      // a cell that can't gather enough stays liquid for now. Other particles in the cell get pushed out.
+      const near = new Map<number, number[]>();
+      for (let k = 0; k < f.count; k++) {
+        const c = this.cellAt(f.pos[2 * k], f.pos[2 * k + 1]);
+        if (c < 0) continue;
+        for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+          const cc = c + di + dj * nx;
+          if (freeze.get(cc) !== f.kind[k]) continue;
+          let list = near.get(cc);
+          if (!list) near.set(cc, (list = []));
+          list.push(k);
+        }
       }
-      changed = true;
+      const claimed = new Set<number>();
+      for (const [c, kind] of freeze) {
+        const cx = ((c % nx) + 0.5) * this.h, cy = (Math.floor(c / nx) + 0.5) * this.h;
+        const d2 = (k: number) => (f.pos[2 * k] - cx) ** 2 + (f.pos[2 * k + 1] - cy) ** 2;
+        const list = (near.get(c) ?? []).filter(k => !claimed.has(k)).sort((a, b) => d2(a) - d2(b));
+        if (list.length < PHASE_PARTICLES) continue;
+        for (let n = 0; n < PHASE_PARTICLES; n++) claimed.add(list[n]);
+        mat[c] = kind === WATER ? ICE : WAX_SOLID; f.s[c] = 0; this.melt[c] = 0;
+        changed = true;
+      }
+      for (const k of [...claimed].sort((a, b) => b - a)) f.removeParticle(k);
     }
 
     // Melting: warm ice turns back into water.
-    const sp = 2 * f.radius;
     for (let j = 1; j < ny - 1; j++) for (let i = 1; i < nx - 1; i++) {
       const c = i + j * nx;
       const isIce = mat[c] === ICE;
@@ -499,8 +520,9 @@ export class Thermo {
       mat[c] = NONE;
       f.s[c] = 1;
       T[c] = meltAt + 1;
-      for (let y = j * this.h + f.radius; y < (j + 1) * this.h; y += sp)
-        for (let x = i * this.h + f.radius; x < (i + 1) * this.h; x += sp) f.addParticle(x, y, 0, 0, isIce ? WATER : WAX, meltAt + 1);
+      // PHASE_PARTICLES (4) particles, on a 2x2 grid inside the cell.
+      for (const [qx, qy] of [[0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]])
+        f.addParticle((i + qx) * this.h, (j + qy) * this.h, 0, 0, isIce ? WATER : WAX, meltAt + 1);
       changed = true;
     }
     if (changed) this.solidChanges++;
