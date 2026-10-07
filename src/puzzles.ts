@@ -121,21 +121,21 @@ export const PUZZLES: Level[] = [
   },
   {
     name: '3b. Muddy Waters',
-    desc: 'Muddy water pours straight into the beaker. The beaker needs clear water.',
+    desc: 'Muddy water pours straight down onto the marked area. Hold clear water there.',
     puzzle: {
-      goal: { zone: { i0: 72, j0: 70, i1: 89, j1: 86 }, kind: WATER, amount: 300, maxSilt: 0.1, label: '300 water, under 10% dirt (none settled in the beaker)' },
+      goal: { zone: { i0: 72, j0: 70, i1: 89, j1: 86 }, kind: WATER, amount: 300, maxSilt: 0.1, label: '300 water, under 10% dirt (none settled in the area)' },
       tools: { wall: Infinity },
       hint: 'Catch the stream before it reaches the beaker and lead it into a tank of your own. Let the silt settle there, and let only the clear top spill over into the beaker.',
     },
     build: b => {
-      b.solid(70, 70, 71, 88); b.solid(90, 70, 91, 88); b.solid(70, 87, 91, 88);
+      // No beaker: the marked area is where your own container has to hold the clear water.
       b.drain(1, 88, 158, 88);
       b.faucet(158, 6, 2, 80, true, WATER, 0.9);
     },
   },
   {
     name: '4. Skimmer',
-    desc: 'Oil and water pour into a tank. Only oil may go in the beaker on the left.',
+    desc: 'Oil and water pour into a tank. Hold only oil in the marked area on the left.',
     puzzle: {
       goal: { zone: { i0: 20, j0: 56, i1: 34, j1: 85 }, kind: OIL, amount: 150, minPurity: 0.85, label: '150 oil, at least 85% pure' },
       tools: { wall: Infinity },
@@ -145,8 +145,7 @@ export const PUZZLES: Level[] = [
       // Separator tank: low left wall with a lip (oil spills here), tall right wall with an outlet at the bottom.
       b.solid(40, 46, 41, 80); b.solid(30, 46, 41, 46);
       b.solid(79, 30, 80, 71); b.solid(40, 79, 120, 80);
-      // Oil beaker under the lip.
-      b.solid(18, 56, 19, 86); b.solid(35, 56, 36, 86); b.solid(18, 85, 36, 86);
+      // No oil beaker: the marked area under the lip is where your container has to hold the oil.
       // Outlet channel to a drain.
       b.drain(100, 78, 119, 78);
       b.drain(1, 88, 158, 88);

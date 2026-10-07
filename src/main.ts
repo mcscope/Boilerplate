@@ -45,6 +45,13 @@ function initialPhysics(): Physics {
   return 'unified';
 }
 let world = new World(initialPhysics());
+/**
+ * Puzzle difficulty. Locked: build while paused; once the run starts, building is locked until Reset.
+ * Live: edit while it runs.
+ */
+type EditMode = 'locked' | 'live';
+let editMode: EditMode = (() => { try { return localStorage.getItem('editMode') === 'locked' ? 'locked' : 'live'; } catch { return 'live'; } })();
+let lockNoticeShown = false;
 let levelIndex = 0;
 /** Remaining tool budgets in a puzzle (cells, or seconds for fire / chill); null in free play. */
 let budget: Record<string, number> | null = null;
@@ -105,6 +112,10 @@ document.querySelector('#app')!.innerHTML = `
       </section>
       <section>
         <h2>Puzzles</h2>
+        <div class="tools mode" role="group" aria-label="Difficulty">
+          <button data-mode="locked" title="Build while paused. Once you press Play, building is locked until Reset.">Locked</button>
+          <button data-mode="live" title="Edit freely while the simulation runs.">Live</button>
+        </div>
         <div class="levels">${PUZZLES.map((l, i) => `<button data-level="${i}">${l.name}</button>`).join('')}</div>
         <h2>Playground</h2>
         <div class="levels">${LEVELS.map((l, i) => `<button data-level="${PUZZLES.length + i}">${l.name}</button>`).join('')}</div>
@@ -148,8 +159,10 @@ function loadBests(): BestStore {
   try { return JSON.parse(localStorage.getItem('bests') ?? '{}') as BestStore; } catch { return {}; }
 }
 
+function bestKey() { return `${world.physics}:${editMode}`; }
+
 function bestFor(name: string): Best | undefined {
-  return loadBests()[world.physics]?.[name];
+  return loadBests()[bestKey()]?.[name];
 }
 
 /** Materials placed this attempt (walls, wood…), the "parts" score. Fire isn't counted. */
@@ -160,7 +173,7 @@ function partsUsed() {
 /** Record a solve; returns which metrics are new personal bests. */
 function recordBest(name: string, time: number, parts: number) {
   const store = loadBests();
-  const mine = (store[world.physics] ??= {});
+  const mine = (store[bestKey()] ??= {});
   const old = mine[name];
   const newTime = !old || time < old.time, newParts = !old || parts < old.parts;
   mine[name] = { time: newTime ? time : old.time, parts: newParts ? parts : old.parts };
@@ -195,6 +208,7 @@ function loadLevel(i: number) {
   used = {};
   solvedShown = false;
   hintShown = false;
+  lockNoticeShown = false;
   if (budget) {
     paused = true; // puzzles start paused: build first, then press Play
     if (!(tool in budget)) tool = Object.keys(budget)[0] as Tool;
@@ -256,6 +270,7 @@ function refreshButtons() {
     b.innerHTML = `<kbd>${TOOLS.find(x => x.id === t)!.key}</kbd>${label}${left}`;
   }
   for (const b of document.querySelectorAll<HTMLElement>('[data-brush]')) b.classList.toggle('active', Number(b.dataset.brush) === brushIndex);
+  for (const b of document.querySelectorAll<HTMLElement>('[data-mode]')) b.classList.toggle('active', b.dataset.mode === editMode);
   for (const b of document.querySelectorAll<HTMLElement>('[data-level]')) b.classList.toggle('active', Number(b.dataset.level) === levelIndex);
   const faucetOn = world.emitters.some(e => e.on);
   const faucet = $('#faucet');
@@ -287,6 +302,11 @@ document.addEventListener('click', ev => {
   else if (el.id === 'reset') loadLevel(levelIndex);
   else if (el.id === 'faucet') toggleFaucet();
   else if (el.id === 'next') loadLevel(levelIndex + 1);
+  else if (el.dataset.mode) {
+    editMode = el.dataset.mode as EditMode;
+    try { localStorage.setItem('editMode', editMode); } catch { /* storage unavailable */ }
+    markSolved();
+  }
   else if (el.id === 'hint') { hintShown = true; renderGoal(); }
   else if (el.id === 'pressure') view = view === 'pressure' ? 'normal' : 'pressure';
   else if (el.id === 'temperature') view = view === 'temperature' ? 'normal' : 'temperature';
@@ -330,6 +350,10 @@ window.addEventListener('mouseup', () => (held = null));
 
 function applyBrush() {
   if (!held || !mouse) return;
+  if (budget && editMode === 'locked' && world.time > 0) {
+    if (!lockNoticeShown) { lockNoticeShown = true; banner('<div class="small">Locked mode: press Reset (R) to edit again</div>', 'title-banner', 1700); }
+    return;
+  }
   const r = BRUSHES[brushIndex];
   const { x, y } = mouse;
   const mat = SOLID_TOOL[held];
