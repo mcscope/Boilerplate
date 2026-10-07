@@ -290,3 +290,18 @@ export function installPixelUI() {
   set('--dither-bg', dither([14, 15, 22], [20, 22, 32], 0.25));
   set('--dither-panel', dither([24, 26, 38], [28, 31, 45], 0.12));
 }
+
+/** A 12x12 icon for a brush size: a filled pixel disc, bigger for bigger brushes (index 0..3). */
+export function brushIcon(index: number): string {
+  const key = `brush${index}`;
+  if (iconCache.has(key)) return iconCache.get(key)!;
+  const r = [1.6, 2.6, 3.7, 5.4][index] ?? 5.4;
+  const { c, g } = makeCanvas(12, 12);
+  for (let y = 0; y < 12; y++) for (let x = 0; x < 12; x++) {
+    const d = Math.hypot(x + 0.5 - 6, y + 0.5 - 6);
+    if (d <= r) px(g, x, y, d > r - 1 ? [5, 6, 10] : d < r * 0.45 && x < 6 && y < 6 ? [236, 240, 248] : [150, 156, 176]);
+  }
+  const url = c.toDataURL();
+  iconCache.set(key, url);
+  return url;
+}

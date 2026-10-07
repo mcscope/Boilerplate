@@ -3,7 +3,7 @@ import { Renderer } from './render';
 import { OIL, WATER } from './sim/fluid';
 import { ICE, MUD, NONE, STONE, WAX_SOLID, WOOD } from './sim/thermo';
 import { PUZZLES } from './puzzles';
-import { installPixelUI, toolIcon } from './ui/pixel';
+import { brushIcon, installPixelUI, toolIcon } from './ui/pixel';
 import { H, LEVELS, Level, Physics, W, World } from './world';
 
 type Tool = 'wall' | 'erase' | 'water' | 'muddy' | 'oil' | 'mud' | 'wood' | 'ice' | 'wax' | 'steam' | 'fire' | 'chill' | 'sponge';
@@ -69,8 +69,6 @@ let paused = false;
 let view: View = 'normal';
 let mouse: { x: number; y: number } | null = null;
 let held: Tool | null = null;
-/** Draw with the opposite tool (Wall↔Erase etc.): right-drag on desktop, the Reverse toggle on touch. */
-let reverse = false;
 /** The pointer (mouse button, finger or pen) currently drawing; other touches are ignored. */
 let drawPointer: number | null = null;
 
@@ -94,8 +92,26 @@ document.querySelector('#app')!.innerHTML = `
     <div class="stage">
       <canvas id="view" width="${W}" height="${H}"></canvas>
       <div id="banner"></div>
+      <div id="chip"></div>
     </div>
+    <nav id="dock" aria-label="Controls">
+      <button data-act="menu" title="Menu: level, goal, views, puzzles">☰</button>
+      <button data-act="pause"></button>
+      <button data-act="reset" title="Reset the level">⟲</button>
+      <button data-act="brush" title="Brush size"></button>
+      ${TOOLS.map(t => `<button data-tool="${t.id}" title="${t.label}"></button>`).join('')}
+    </nav>
+    <button id="scrim" data-act="menu" aria-label="Close menu"></button>
     <aside>
+      <section class="compact-only drawer-top">
+        <button data-act="menu">✕ Close</button>
+        <button data-act="step">Step</button>
+        <button data-act="fullscreen" class="fs">⛶ Fullscreen</button>
+        <span class="group physics">
+          <button data-physics="classic">Classic</button>
+          <button data-physics="unified">Unified</button>
+        </span>
+      </section>
       <section id="level-info">
         <h2 id="level-name"></h2>
         <p id="level-desc" class="muted"></p>
@@ -103,18 +119,18 @@ document.querySelector('#app')!.innerHTML = `
       </section>
       <section id="tools-panel">
         <h2>Tools</h2>
-        <button id="reverse" class="reverse" title="Draw with the opposite tool: Wall↔Erase, Water↔Sponge, Fire↔Chill (same as right-drag)">⇄ Reverse</button>
+
         <div class="tools">${TOOLS.map(t => `<button data-tool="${t.id}" title="${t.label}"></button>`).join('')}</div>
         <p id="tool-hint" class="muted"></p>
-        <h2>Brush size</h2>
-        <div class="tools">${BRUSHES.map((b, i) => `<button data-brush="${i}"><kbd>${i + 1}</kbd>${b * 2}px</button>`).join('')}</div>
+        <h2 class="brush-h">Brush size</h2>
+        <div class="tools">${BRUSHES.map((b, i) => `<button data-brush="${i}" title="${b * 2}px brush"><img class="icon" src="${brushIcon(i)}" alt="${b * 2}px"><kbd>${i + 1}</kbd></button>`).join('')}</div>
       </section>
       <section>
         <h2>World</h2>
         <div class="tools">
           <button id="faucet" title="Toggle the level's faucets (F)"></button>
-          <button id="pressure" title="Tint air by pressure: blue below atmosphere, orange above (P)">Pressure view</button>
-          <button id="temperature" title="Show temperature: blue cold, red hot, white very hot (T)">Temperature view</button>
+          <button id="pressure" title="Tint air by pressure: blue below atmosphere, orange above (P)">Pressure</button>
+          <button id="temperature" title="Show temperature: blue cold, red hot, white very hot (T)">Temperature</button>
         </div>
       </section>
       <section>
@@ -128,7 +144,8 @@ document.querySelector('#app')!.innerHTML = `
         <div class="levels">${LEVELS.map((l, i) => `<button data-level="${PUZZLES.length + i}">${l.name}</button>`).join('')}</div>
       </section>
     </aside>
-  </main>`;
+  </main>
+  <div id="rotate"><img class="icon" src="${toolIcon('water')}" alt=""><div>Turn your phone sideways</div><div class="muted">Pressure Lab plays in landscape.</div></div>`;
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
 const canvas = $<HTMLCanvasElement>('#view');
@@ -241,9 +258,11 @@ function allowed(t: Tool) {
   return !budget || t in budget || (t === 'erase' && Object.keys(budget).some(k => k in SOLID_TOOL));
 }
 
+let lastChipHtml = '';
+
 function renderGoal() {
   const p = ALL[levelIndex].puzzle, el = $('#goal');
-  if (!p) { el.innerHTML = ''; lastGoalHtml = ''; return; }
+  if (!p) { el.innerHTML = ''; lastGoalHtml = ''; $('#chip').innerHTML = ''; lastChipHtml = ''; return; }
   const g = world.goal, goal = p.goal;
   const pct = Math.min(100, (g.amount / goal.amount) * 100);
   const checks: string[] = [];
@@ -258,13 +277,22 @@ function renderGoal() {
     <div class="muted">${g.amount} / ${goal.amount}${checks.length ? ' · ' + checks.join(' · ') : ''}</div>
     ${g.solved ? `<div class="solved">Solved! ${next}</div>` : g.met ? `<div class="muted">Holding… ${g.held.toFixed(1)}s</div>` : ''}
     ${hintShown ? `<p class="muted hint">Hint: ${p.hint}</p>` : '<button id="hint">Show hint</button>'}
-    ${paused && world.time === 0 ? '<p class="muted"><b>Build first, then press Play (Space).</b></p>' : ''}`;
+    ${paused && world.time === 0 ? `<p class="muted"><b>Build first, then press Play${matchMedia('(pointer: coarse)').matches ? '' : ' (Space)'}.</b></p>` : ''}`;
   // Only touch the DOM when something changed, so buttons in the panel don't get replaced mid-click.
   if (html !== lastGoalHtml) { el.innerHTML = html; lastGoalHtml = html; }
+  // The compact goal chip shown over the game on phones.
+  const bad = checks.filter(c => c.includes('class="bad"')).map(c => c.replace(/ \(.*\)$/, ''));
+  const chip = g.solved
+    ? `<b class="ok">✓ Solved</b>${next.replace('Next puzzle →', 'Next ▶')}`
+    : `<span class="meter"><i style="width:${pct}%"></i></span><span>${g.amount}/${goal.amount}</span>${bad.map(b => `<span>${b}</span>`).join('')}${g.met ? `<span>Holding ${g.held.toFixed(1)}s</span>` : ''}`;
+  if (chip !== lastChipHtml) { $('#chip').innerHTML = chip; lastChipHtml = chip; }
 }
 
 function refreshButtons() {
   $('#pause').textContent = paused ? '▶ Play' : '❚❚ Pause';
+  for (const b of document.querySelectorAll<HTMLElement>('[data-act="pause"]')) b.textContent = paused ? '▶' : '❚❚';
+  for (const b of document.querySelectorAll<HTMLElement>('[data-act="brush"]')) b.innerHTML = `<img class="icon" src="${brushIcon(brushIndex)}" alt="${BRUSHES[brushIndex] * 2}px">`;
+  $('.fs').style.display = document.fullscreenEnabled ? '' : 'none';
   for (const b of document.querySelectorAll<HTMLElement>('[data-tool]')) {
     const t = b.dataset.tool as Tool;
     b.classList.toggle('active', t === tool);
@@ -283,7 +311,6 @@ function refreshButtons() {
   const faucet = $('#faucet');
   faucet.textContent = world.emitters.length ? (faucetOn ? 'Faucet: on (G)' : 'Faucet: off (G)') : 'No faucet';
   faucet.toggleAttribute('disabled', !world.emitters.length || !!budget);
-  $('#reverse').classList.toggle('active', reverse);
   $('#pressure').classList.toggle('active', view === 'pressure');
   $('#temperature').classList.toggle('active', view === 'temperature');
   for (const b of document.querySelectorAll<HTMLElement>('[data-physics]')) b.classList.toggle('active', b.dataset.physics === world.physics);
@@ -302,26 +329,39 @@ function toggleFaucet() {
   refreshButtons();
 }
 
+/** Fullscreen hides the browser bars on phones; then try to hold landscape (Android allows it in fullscreen). */
+function enterFullscreen() {
+  document.documentElement.requestFullscreen?.()
+    .then(() => (screen.orientation as ScreenOrientation & { lock?(o: string): Promise<void> }).lock?.('landscape'))
+    .catch(() => { /* not supported (e.g. iPhone Safari) */ });
+}
+
+// #menu in the URL opens the drawer (phone layout).
+if (location.hash === '#menu') document.body.classList.add('drawer-open');
+
 document.addEventListener('click', ev => {
   const el = (ev.target as HTMLElement).closest<HTMLElement>('button');
   if (!el) return;
-  if (el.id === 'pause') togglePause();
-  else if (el.id === 'step') { paused = true; world.step(1 / 60); }
-  else if (el.id === 'reset') loadLevel(levelIndex);
-  else if (el.id === 'faucet') toggleFaucet();
-  else if (el.id === 'next') loadLevel(levelIndex + 1);
+  const act = el.dataset.act ?? el.id;
+  if (act === 'menu') document.body.classList.toggle('drawer-open');
+  else if (act === 'brush') brushIndex = (brushIndex + 1) % BRUSHES.length;
+  else if (act === 'fullscreen') enterFullscreen();
+  else if (act === 'pause') togglePause();
+  else if (act === 'step') { paused = true; world.step(1 / 60); }
+  else if (act === 'reset') loadLevel(levelIndex);
+  else if (act === 'faucet') toggleFaucet();
+  else if (act === 'next') loadLevel(levelIndex + 1);
   else if (el.dataset.mode) {
     editMode = el.dataset.mode as EditMode;
     try { localStorage.setItem('editMode', editMode); } catch { /* storage unavailable */ }
     markSolved();
   }
-  else if (el.id === 'reverse') reverse = !reverse;
-  else if (el.id === 'hint') { hintShown = true; renderGoal(); }
-  else if (el.id === 'pressure') view = view === 'pressure' ? 'normal' : 'pressure';
-  else if (el.id === 'temperature') view = view === 'temperature' ? 'normal' : 'temperature';
+  else if (act === 'hint') { hintShown = true; renderGoal(); }
+  else if (act === 'pressure') view = view === 'pressure' ? 'normal' : 'pressure';
+  else if (act === 'temperature') view = view === 'temperature' ? 'normal' : 'temperature';
   else if (el.dataset.tool && allowed(el.dataset.tool as Tool)) tool = el.dataset.tool as Tool;
   else if (el.dataset.brush) brushIndex = Number(el.dataset.brush);
-  else if (el.dataset.level) loadLevel(Number(el.dataset.level));
+  else if (el.dataset.level) { loadLevel(Number(el.dataset.level)); document.body.classList.remove('drawer-open'); }
   else if (el.dataset.physics) setPhysics(el.dataset.physics as Physics);
   refreshButtons();
 });
@@ -366,7 +406,7 @@ canvas.addEventListener('pointerdown', ev => {
   if (ev.pointerType === 'mouse' && ev.button !== 0 && ev.button !== 2) return;
   drawPointer = ev.pointerId;
   canvas.setPointerCapture(ev.pointerId);
-  held = (ev.button === 2) !== reverse ? OPPOSITE[tool] : tool;
+  held = ev.button === 2 ? OPPOSITE[tool] : tool;
   if (!allowed(held)) held = budget && tool in SOLID_TOOL ? 'erase' : null;
   mouse = canvasPos(ev);
   ev.preventDefault();

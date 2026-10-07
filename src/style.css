@@ -246,12 +246,10 @@ button { touch-action: manipulation; }
 
 /* The game fits the viewport's height as well as its column (--chrome-h is measured in main.ts). */
 .stage { width: 100%; max-width: calc((100dvh - var(--chrome-h, 120px)) * 16 / 9); min-width: 240px; }
-main { grid-template-columns: minmax(0, 1fr) 300px; }
+main { grid-template-columns: minmax(0, 1fr) 320px; }
+[data-brush] { padding-left: calc(var(--px) * 4); padding-right: calc(var(--px) * 4); }
 .stage { justify-self: end; }
 .levels button .lbl, .levels button small { display: block; }
-
-/* Reverse (the touch stand-in for right-drag) only appears on touch screens. */
-.reverse { display: none; margin-bottom: calc(var(--px) * 4); }
 
 #banner .big { font-size: clamp(22px, 5vw, 44px); }
 #banner .small { font-size: clamp(13px, 2.4vw, 18px); }
@@ -263,7 +261,6 @@ main { grid-template-columns: minmax(0, 1fr) 300px; }
 }
 @media (pointer: coarse) {
   kbd { display: none; }
-  .reverse { display: inline-flex; }
   button { min-height: 36px; }
 }
 
@@ -284,17 +281,76 @@ main { grid-template-columns: minmax(0, 1fr) 300px; }
   #tool-hint { font-size: 12px; }
 }
 
-/* Phone in landscape: game on the left at full height, panels scroll in a column on the right. */
-@media (orientation: landscape) and (max-height: 540px) {
-  html, body { height: 100dvh; overflow: hidden; }
-  main { grid-template-columns: auto minmax(170px, 1fr); align-items: start; }
-  .stage { width: min(calc((100dvh - var(--chrome-h, 60px)) * 16 / 9), calc(100vw - 170px - var(--px) * 16 - env(safe-area-inset-left) - env(safe-area-inset-right))); }
-  aside { max-height: calc(100dvh - var(--chrome-h, 60px) + var(--px) * 6); overflow-y: auto; padding-right: var(--px); }
-  .brush-h, #tools-panel h2 + .reverse { margin-top: 0; }
-}
-
 /* Phone in portrait: game full width on top, panels below. */
 @media (orientation: portrait) and (max-width: 760px) {
   main { grid-template-columns: minmax(0, 1fr); }
   .stage { max-width: none; }
 }
+
+/* ---- Phone landscape: the game fills the height; a slim dock on the right; everything else in a drawer. ---- */
+#dock, #scrim, #chip, #rotate, .compact-only { display: none; }
+#tools-panel [data-brush] .icon { margin-right: var(--px); }
+
+@media (orientation: landscape) and (max-height: 540px) {
+  html, body { height: 100dvh; overflow: hidden; }
+  header { display: none; }
+  main {
+    display: flex; justify-content: center; align-items: center; gap: calc(var(--px) * 3);
+    height: 100dvh; padding: calc(var(--px) * 3);
+  }
+  .stage {
+    flex: none; max-width: none; min-width: 0;
+    /* As tall as the screen allows, but leave room for the dock (2 columns of 40px + gaps). */
+    width: min(calc((100dvh - var(--px) * 12 - env(safe-area-inset-top) - env(safe-area-inset-bottom)) * 16 / 9 + var(--px) * 6),
+               calc(100vw - 96px - var(--px) * 9 - env(safe-area-inset-left) - env(safe-area-inset-right)));
+  }
+
+  #dock {
+    display: grid; grid-template-columns: repeat(2, 40px); grid-auto-rows: 34px; gap: var(--px);
+    align-content: start; align-self: stretch; max-height: calc(100dvh - var(--px) * 6); overflow-y: auto;
+  }
+  #dock button { min-height: 0; padding: 0; justify-content: center; font-size: 15px; }
+  #dock button:active, #dock button.active { padding: var(--px) 0 0 var(--px); }
+  #dock [data-act="menu"], #dock [data-act="pause"] { font-family: 'Silkscreen', monospace; }
+  #dock [data-tool] kbd, #dock [data-tool] .lbl, #dock [data-tool] .cnt { display: none; }
+  #dock .icon { margin: 0; width: calc(var(--px) * 12); height: calc(var(--px) * 12); }
+
+  /* Goal chip over the top of the game: meter, count, failing checks. Clicks pass through except on buttons. */
+  #chip:not(:empty) {
+    display: flex; align-items: center; gap: calc(var(--px) * 4);
+    position: absolute; top: calc(var(--px) * 5); left: 50%; transform: translateX(-50%);
+    padding: calc(var(--px) * 2) calc(var(--px) * 5); font-size: 12px; white-space: nowrap;
+    border-image: var(--frame-panel) 3 fill / calc(var(--px) * 3) stretch; opacity: 0.92; pointer-events: none;
+  }
+  #chip .meter { display: block; width: 70px; height: calc(var(--px) * 6); margin: 0; padding: var(--px); }
+  #chip b.ok { color: #7be08a; } #chip b.bad { color: #ff8a7a; }
+  #chip button { pointer-events: auto; font-size: 12px; min-height: 0; }
+
+  /* The drawer: the side panels slide in over the game. */
+  aside {
+    position: fixed; top: 0; right: 0; bottom: 0; z-index: 30; width: min(340px, 75vw);
+    overflow-y: auto; padding: calc(var(--px) * 4) calc(var(--px) * 4) calc(var(--px) * 4 + env(safe-area-inset-bottom));
+    padding-right: calc(var(--px) * 4 + env(safe-area-inset-right));
+    background: var(--dither-bg) 0 0 / calc(var(--px) * 4) calc(var(--px) * 4);
+    box-shadow: calc(var(--px) * -3) 0 0 #05060a;
+    transform: translateX(calc(100% + 8px)); transition: transform 0.18s steps(4);
+  }
+  body.drawer-open aside { transform: none; }
+  body.drawer-open #scrim { display: block; position: fixed; inset: 0; z-index: 25; border: none; border-image: none; background: rgba(5, 6, 10, 0.55); }
+  .compact-only { display: flex; flex-wrap: wrap; gap: var(--px); align-items: center; }
+  #tools-panel { order: 0; }
+  #tools-panel .tools, #tools-panel .brush-h { display: none; }
+}
+
+/* Phones held upright: ask for landscape. */
+@media (pointer: coarse) and (orientation: portrait) and (max-width: 900px) {
+  #rotate {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--px) * 6);
+    position: fixed; inset: 0; z-index: 50; text-align: center; font-family: 'Silkscreen', monospace; font-size: 18px;
+    background: var(--dither-bg) 0 0 / calc(var(--px) * 4) calc(var(--px) * 4);
+  }
+  #rotate .icon { width: 72px; height: 72px; image-rendering: pixelated; animation: tilt 1.6s steps(4) infinite; }
+  #rotate .muted { font-family: 'Pixelify Sans', monospace; font-size: 14px; }
+  header, main { display: none; }
+}
+@keyframes tilt { 0%, 40% { transform: rotate(0deg); } 60%, 100% { transform: rotate(-90deg); } }
