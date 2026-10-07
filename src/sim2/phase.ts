@@ -200,6 +200,20 @@ export function phaseLedger(): { mass: number; heat: number; alc: number } {
 export function phaseBalance(): Float64Array { return st.accM; }
 
 /** Add dm (> 0 owed by liquid, < 0 credited to liquid) at temperature T to cell c's accumulator, conserving energy. */
+/**
+ * Condensation of a water–alcohol vapor with nothing to condense onto but itself (a cold wall, fog). It condenses
+ * once Σ pᵢ/psatᵢ > 1 (its dew point), as a liquid in equilibrium with it: mole fractions ∝ pᵢ/psatᵢ (Raoult), so
+ * the condensate is richer in water than the vapor and what stays behind is richer in alcohol. Returns the water
+ * and alcohol masses that condense, moving Σ pᵢ/psatᵢ a fraction `rate` of the way back to 1.
+ */
+function dew(vap: number, av: number, sv: number, sa: number, rate: number): [number, number] {
+  const rw = vap / sv, ra = av > 0 ? av / sa : 0, r = rw + ra;
+  if (r <= 1) return [0, 0];
+  const xw = rw / r, xa = ra / r; // condensate mole fractions
+  const n = (rate * (r - 1)) / ((xw * 18.02) / sv + (xa * 46.07) / sa);
+  return [Math.min(vap, n * xw * 18.02), Math.min(av, n * xa * 46.07)];
+}
+
 function accAdd(accM: Float64Array, accH: Float64Array, dQ: Float64Array, c: number, dm: number, T: number) {
   const m = accM[c];
   if (m !== 0 && (m > 0) !== (dm > 0)) {
@@ -311,21 +325,13 @@ export function phaseChange(ctx: PhaseContext): void {
     for (let f = 0; f < 5; f++) {
       const o = f === 0 ? c : f === 1 ? c - nx : f === 2 ? c - 1 : f === 3 ? c + 1 : c + nx;
       if (s[o] === 0) {
-        // cold surface: condense only (each species toward its own saturation over its pure liquid)
-        const sv = satV(T[o]);
-        if (vap > sv) {
-          const dm = aWall * (vap - sv);
-          vap -= dm;
-          dQ[o] += (H_VAPOR - T[o]) * dm;
-          accAdd(accM, accH, dQ, c, -dm, T[o]);
-        }
-        const sa = av > 0 ? satA(T[o]) : 0;
-        if (av > sa) {
-          const dm = aWall * (av - sa);
-          av -= dm;
-          dQ[o] += (H_ALC - T[o]) * dm;
-          accAdd(accM, accH, dQ, c, -dm, T[o]);
-          accA[c] -= dm;
+        // cold surface: condense only, as a film of the equilibrium water–alcohol mix
+        const [dmW, dmA] = dew(vap, av, satV(T[o]), satA(T[o]), aWall);
+        if (dmW + dmA > 0) {
+          vap -= dmW; av -= dmA;
+          dQ[o] += (H_VAPOR - T[o]) * dmW + (H_ALC - T[o]) * dmA;
+          accAdd(accM, accH, dQ, c, -(dmW + dmA), T[o]);
+          accA[c] -= dmA;
         }
         continue;
       }
@@ -343,28 +349,16 @@ export function phaseChange(ctx: PhaseContext): void {
       accA[o] += dmA;
     }
     // fog: condensation in the gas itself, limited so the released heat doesn't overshoot saturation
-    const Tc = T[c];
-    const sv = satV(Tc);
-    if (vap > sv) {
+    const Tc = T[c], sv = satV(Tc), sa = satA(Tc);
+    if (vap / sv + (av > 0 ? av / sa : 0) > 1) {
       const TK = Tc + 273.15;
-      const dsdT = sv * (B_CLAUSIUS / (TK * TK) - 1 / TK);
-      const a = (H_VAPOR - Tc) / CAP_GAS;
-      const dm = aFog * (vap - sv) / (1 + Math.max(0, dsdT) * a);
-      vap -= dm;
-      dQ[c] += (H_VAPOR - Tc) * dm;
-      accAdd(accM, accH, dQ, c, -dm, Tc);
-    }
-    if (av > 0) {
-      const sa = satA(Tc);
-      if (av > sa) {
-        const TK = Tc + 273.15;
-        const dsdT = sa * (B_ALC / (TK * TK) - 1 / TK);
-        const dm = aFog * (av - sa) / (1 + Math.max(0, dsdT) * (H_ALC - Tc) / CAP_GAS);
-        av -= dm;
-        dQ[c] += (H_ALC - Tc) * dm;
-        accAdd(accM, accH, dQ, c, -dm, Tc);
-        accA[c] -= dm;
-      }
+      const dW = sv * (B_CLAUSIUS / (TK * TK) - 1 / TK) * (H_VAPOR - Tc) / CAP_GAS;
+      const dA = av > 0 ? sa * (B_ALC / (TK * TK) - 1 / TK) * (H_ALC - Tc) / CAP_GAS : 0;
+      const [dmW, dmA] = dew(vap, av, sv, sa, aFog / (1 + Math.max(0, dW, dA)));
+      vap -= dmW; av -= dmA;
+      dQ[c] += (H_VAPOR - Tc) * dmW + (H_ALC - Tc) * dmA;
+      accAdd(accM, accH, dQ, c, -(dmW + dmA), Tc);
+      accA[c] -= dmA;
     }
     vapor[c] = vap;
     alcVapor[c] = av;
