@@ -1,33 +1,32 @@
 /**
  * Canonical physics scenarios (design/unified-physics.md, "Validation scenarios"), run headlessly.
  *
- *   npm run test:physics                         # classic engine
- *   npm run test:physics -- --physics=unified    # unified engine
+ *   npm run test:physics
  *   npm run test:physics -- --only=siphon --jobs=1 --verbose
  *
  * Each scenario builds its own small level, runs it, and reports one metric against a pass threshold.
- * Thresholds come from the design doc and are deliberately NOT tuned to make the classic engine pass:
- * `expected` records the known classic baseline so classic runs stay green while still showing its failures.
+ * Thresholds come from the design doc. `expected` records a scenario's known baseline, so a known failure stays
+ * visible without failing the run.
  * Exit code is non-zero on unexpected failures (any failure with --strict).
  */
 import { CELL, CUP_INTERIOR, LEVELS, NX } from '../src/world';
 import { OIL, WATER } from '../src/sim/fluid';
 import {
-  Args, Expect, ascii, Physics, RESULT_TAG, Result, builder, countIn, fmt, gasCellsIn, gasTotals, holdTemp, kindCounts,
-  loadWorld, makeWorld, maxSpeed, mean, openCells, parseArgs, percentile, seedRandom, rect, report, run, runParallel, surfaceFromCount, ysIn,
+  Args, Expect, ascii, RESULT_TAG, Result, builder, countIn, fmt, gasCellsIn, gasTotals, holdTemp, kindCounts,
+  loadWorld, maxSpeed, mean, openCells, parseArgs, percentile, seedRandom, rect, report, run, runParallel, surfaceFromCount, ysIn,
 } from './lib';
 
 const G = 800; // px/s², DEFAULT_PARAMS.gravity
-const P0 = 60000; // atmospheric pressure, px²/s² (AIR_STIFFNESS / sim2 P0)
+const P0 = 60000; // atmospheric pressure, px²/s² (sim2 P0)
 
 interface Outcome { pass: boolean; metric: string; threshold: string; note?: string }
 interface Scenario {
   id: string;
   name: string;
-  expected: Record<Physics, Expect>;
+  expected: Expect;
   /** Why the expectation is what it is, shown when the result matches a non-pass expectation. */
   why?: string;
-  run: (physics: Physics, verbose: boolean) => Outcome;
+  run: (verbose: boolean) => Outcome;
 }
 
 const log = (verbose: boolean, ...a: unknown[]) => { if (verbose) console.log(...a); };
@@ -42,10 +41,9 @@ const SCENARIOS: Scenario[] = [
   // 1 -------------------------------------------------------------------------------------------
   {
     id: 'hydrostatic', name: '1. Hydrostatic rest',
-    expected: { classic: 'fail', unified: 'pass' },
-    why: 'classic: FLIP jitter keeps individual particles moving at ~30-45 px/s in still water',
-    run: (physics, verbose) => {
-      const w = loadWorld(physics, b => {
+    expected: 'pass',
+    run: (verbose) => {
+      const w = loadWorld(b => {
         b.solid(30, 40, 32, 82); b.solid(128, 40, 130, 82); b.solid(30, 80, 130, 82);
         b.water(33, 56, 127, 79);
       });
@@ -67,10 +65,10 @@ const SCENARIOS: Scenario[] = [
   // 2 -------------------------------------------------------------------------------------------
   {
     id: 'utube', name: '2. U-tube equalization',
-    expected: { classic: 'pass', unified: 'pass' },
-    run: (physics, verbose) => {
+    expected: 'pass',
+    run: (verbose) => {
       // Geometry of LEVELS 'U-Tube', but started out of balance instead of with a faucet.
-      const w = loadWorld(physics, b => {
+      const w = loadWorld(b => {
         b.solid(40, 20, 120, 80);
         b.open(46, 20, 54, 72); b.open(106, 20, 114, 72); b.open(46, 66, 114, 72);
         b.water(46, 30, 54, 72); b.water(55, 66, 114, 72);
@@ -88,10 +86,9 @@ const SCENARIOS: Scenario[] = [
   // 3 -------------------------------------------------------------------------------------------
   {
     id: 'siphon', name: '3. Siphon',
-    expected: { classic: 'fail', unified: 'pass' },
-    why: 'classic: drains slowly (55% at 10 s) and sits right at the 50% line at 20 s; reported as stalling near 75% before',
-    run: (physics, verbose) => {
-      const w = loadWorld(physics, levelByName('Siphon'));
+    expected: 'pass',
+    run: (verbose) => {
+      const w = loadWorld(levelByName('Siphon'));
       // High tank interior, minus the hose leg that dips into it.
       const tank = rect(13, 22, 57, 59), hoseLeg = rect(43, 22, 45, 59);
       const inTank = () => countIn(w, tank) - countIn(w, hoseLeg);
@@ -112,9 +109,9 @@ const SCENARIOS: Scenario[] = [
   // 4 -------------------------------------------------------------------------------------------
   {
     id: 'pythagorean', name: '4. Pythagorean cup',
-    expected: { classic: 'pass', unified: 'pass' },
-    run: (physics, verbose) => {
-      const w = loadWorld(physics, levelByName('Pythagorean Cup'));
+    expected: 'pass',
+    run: (verbose) => {
+      const w = loadWorld(levelByName('Pythagorean Cup'));
       // The faucet runs until the siphon fires (water comes out under the cup floor), then is shut off.
       const outlet = rect(108, 73, 110, 85);
       let peak = 0, firedAt = NaN;
@@ -140,13 +137,12 @@ const SCENARIOS: Scenario[] = [
   // 5 -------------------------------------------------------------------------------------------
   {
     id: 'bubble', name: '5. Bubble rise',
-    expected: { classic: 'n/a', unified: 'pass' },
-    why: 'classic has no air dynamics: the bottle just refills and the void reappears at the free surface, so this only checks the liquid side',
-    run: (physics, verbose) => {
+    expected: 'pass',
+    run: (verbose) => {
       // A sealed stone bottle of air at the bottom of a deep tank; its cap is erased at t = 0.
       const tankIn = rect(53, 20, 107, 79);
       const bottle = rect(74, 66, 86, 79);
-      const w = loadWorld(physics, b => {
+      const w = loadWorld(b => {
         b.solid(50, 16, 52, 82); b.solid(108, 16, 110, 82); b.solid(50, 80, 110, 82);
         // Water everywhere except the bottle, so the bottle starts as air at ambient pressure (not a vacuum:
         // in the unified engine a cell that was liquid and empties starts with no gas).
@@ -180,13 +176,13 @@ const SCENARIOS: Scenario[] = [
   // 6 -------------------------------------------------------------------------------------------
   {
     id: 'syringe', name: '6. Syringe (Boyle)',
-    expected: { classic: 'pass', unified: 'pass' },
-    run: (physics, verbose) => {
+    expected: 'pass',
+    run: (verbose) => {
       // J-tube: closed left arm traps air at atmospheric pressure over water; the open right arm gets topped up.
       // P = P0 + ρ g Δh from the two water levels (engine-independent), V = air volume in the closed arm.
       const W = 6;
       const closed = rect(20, 20, 25, 63), open = rect(40, 2, 45, 63), FLOOR = 64;
-      const w = loadWorld(physics, b => {
+      const w = loadWorld(b => {
         b.solid(17, 17, 48, 72);
         b.open(20, 20, 25, 70); b.open(40, 1, 45, 70); b.open(20, 64, 45, 70);
         b.water(20, 50, 25, 70); b.water(40, 50, 45, 70); b.water(26, 64, 39, 70);
@@ -213,14 +209,13 @@ const SCENARIOS: Scenario[] = [
   // 7 -------------------------------------------------------------------------------------------
   {
     id: 'hero', name: "7. Hero's fountain",
-    expected: { classic: 'fail', unified: 'pass' },
-    why: 'classic: trapped air is deleted as water displaces it, so chamber A floods and the pressure stalls near 0.5 atm',
-    run: (physics, verbose) => {
+    expected: 'pass',
+    run: (verbose) => {
       // Open basin (top) drains into sealed chamber A (bottom left); A's air is piped to the top of sealed chamber B
       // (middle right), whose water is pushed up a nozzle that ends above the basin's water surface.
       const SOURCE = 8; // basin water surface row
       const nozzle = rect(86, 1, 87, 41);
-      const w = loadWorld(physics, b => {
+      const w = loadWorld(b => {
         // Basin, open on top, outlet in the floor at i 10..11.
         b.solid(4, 4, 5, 31); b.solid(47, 4, 48, 31); b.solid(4, 30, 48, 31); b.open(10, 30, 11, 31);
         b.water(6, SOURCE, 46, 29);
@@ -249,7 +244,7 @@ const SCENARIOS: Scenario[] = [
         // Highest point the jet reaches: 3rd-highest particle in the nozzle column, ignoring stray single drops.
         const s = ys.sort((a, b) => a - b)[Math.min(2, ys.length - 1)] ?? Infinity;
         if (n > 30) top = Math.min(top, s);
-        if (n % 120 === 0) log(verbose, `  t=${n / 60}s gauges ${w.fluid.regionGauge.map(g => g.toFixed(2)).join(",")} jet top row ${fmt(s)} basin ${countIn(w, rect(6, 4, 46, 29))} A ${countIn(w, rect(6, 61, 30, 72))}`);
+        if (n % 120 === 0) log(verbose, `  t=${n / 60}s jet top row ${fmt(s)} basin ${countIn(w, rect(6, 4, 46, 29))} A ${countIn(w, rect(6, 61, 30, 72))}`);
       });
       return {
         pass: top < SOURCE - 1,
@@ -261,12 +256,12 @@ const SCENARIOS: Scenario[] = [
   // 8 -------------------------------------------------------------------------------------------
   {
     id: 'boil', name: '8. Boiling pot',
-    expected: { classic: 'pass', unified: 'pass' },
-    run: (physics, verbose) => {
+    expected: 'pass',
+    run: (verbose) => {
       // Pot on a hot plate under a cold roof that slopes up to the right, past the pot's rim.
       const pot = rect(52, 50, 88, 69), plate = rect(48, 70, 92, 72);
       const roof: { i: number; j: number }[] = [];
-      const w = loadWorld(physics, b => {
+      const w = loadWorld(b => {
         b.solid(50, 46, 51, 72); b.solid(89, 46, 90, 72); b.solid(48, 70, 92, 72);
         b.water(52, 56, 88, 69);
         for (let i = 40; i <= 130; i++) { const j = Math.round(34 - (i - 40) * 0.15); b.solid(i, j, i, j + 1); roof.push({ i, j }); }
@@ -293,24 +288,22 @@ const SCENARIOS: Scenario[] = [
   // 9 -------------------------------------------------------------------------------------------
   {
     id: 'boiler', name: '9. Sealed boiler',
-    expected: { classic: 'pass', unified: 'pass' },
-    run: (physics, verbose) => {
+    expected: 'pass',
+    run: (verbose) => {
       // LEVELS 'Steam Boiler' with its floor held hot instead of lighting the oil tray.
-      const w = loadWorld(physics, levelByName('Steam Boiler'));
+      const w = loadWorld(levelByName('Steam Boiler'));
       const cup = rect(108, 48, 131, 70), floor = rect(52, 61, 88, 62);
-      let at = NaN, peakGauge = 0;
+      let at = NaN;
       run(w, 45, (w, n) => {
         holdTemp(w, floor, 250);
         const c = countIn(w, cup);
-        const gauge = Math.max(0, ...w.fluid.regionGauge.filter((_, r) => !w.fluid.regionAtmosphere[r]));
-        peakGauge = Math.max(peakGauge, gauge);
         if (Number.isNaN(at) && c >= 100) at = n / 60;
-        if (n % 300 === 0) log(verbose, `  t=${n / 60}s cup ${c} gauge ${fmt(gauge, 2)}`);
+        if (n % 300 === 0) log(verbose, `  t=${n / 60}s cup ${c}`);
       });
       const c = countIn(w, cup);
       return {
         pass: c >= 100,
-        metric: `cup ${c}${Number.isNaN(at) ? '' : ` (100 at ${fmt(at)} s)`}${peakGauge > 0 ? `, peak classic gauge ${fmt(peakGauge, 2)} atm` : ''}`,
+        metric: `cup ${c}${Number.isNaN(at) ? '' : ` (100 at ${fmt(at)} s)`}`,
         threshold: '>= 100 water lifted into the cup within 45 s',
       };
     },
@@ -318,10 +311,10 @@ const SCENARIOS: Scenario[] = [
   // 10 ------------------------------------------------------------------------------------------
   {
     id: 'oil', name: '10. Oil floats',
-    expected: { classic: 'pass', unified: 'pass' },
-    run: (physics, verbose) => {
+    expected: 'pass',
+    run: (verbose) => {
       const tank = rect(33, 30, 127, 79);
-      const w = loadWorld(physics, b => {
+      const w = loadWorld(b => {
         b.solid(30, 30, 32, 82); b.solid(128, 30, 130, 82); b.solid(30, 80, 130, 82);
         b.oil(33, 72, 127, 79); b.water(33, 50, 127, 71);
       });
@@ -338,12 +331,11 @@ const SCENARIOS: Scenario[] = [
   // 11 ------------------------------------------------------------------------------------------
   {
     id: 'mass', name: '11. Mass conservation',
-    expected: { classic: 'fail', unified: 'pass' },
-    why: 'classic: liquid + steam is exact, but region gas is not conserved (~10% of the trapped air disappears)',
-    run: (physics, verbose) => {
+    expected: 'pass',
+    run: (verbose) => {
       // Sealed box: a dam-break slosh over a hot floor (to make vapor), then the heat is cut so it condenses.
       const box = rect(41, 31, 119, 79), floor = rect(41, 80, 119, 81);
-      const w = loadWorld(physics, b => {
+      const w = loadWorld(b => {
         b.solid(38, 28, 122, 30); b.solid(38, 80, 122, 82); b.solid(38, 28, 40, 82); b.solid(120, 28, 122, 82);
         b.water(41, 50, 70, 79);
       });
@@ -379,8 +371,8 @@ function runOne(id: string, args: Args): Result {
   seedRandom(args.seed);
   const t0 = performance.now();
   let o: Outcome;
-  try { o = s.run(args.physics, args.verbose); } catch (e) { o = { pass: false, metric: `threw: ${(e as Error).message}`, threshold: '-' }; }
-  const expected = s.expected[args.physics];
+  try { o = s.run(args.verbose); } catch (e) { o = { pass: false, metric: `threw: ${(e as Error).message}`, threshold: '-' }; }
+  const expected = s.expected;
   const note = expected !== 'pass' ? s.why : o.note;
   return { name: s.name, pass: o.pass, metric: o.metric, threshold: o.threshold, expected, seconds: (performance.now() - t0) / 1000, note };
 }
@@ -388,12 +380,11 @@ function runOne(id: string, args: Args): Result {
 async function main() {
   const args = parseArgs();
   if (args.child) { console.log(RESULT_TAG + JSON.stringify(runOne(args.child, args))); return; }
-  makeWorld(args.physics); // fail fast if this engine isn't available
   const picked = SCENARIOS.filter(s => !args.only || s.id.startsWith(args.only) || s.name.toLowerCase().includes(args.only.toLowerCase()) || s.name.startsWith(args.only));
   if (!picked.length) { console.error(`no scenario matches --only=${args.only}; ids: ${SCENARIOS.map(s => s.id).join(', ')}`); process.exit(2); }
   const t0 = performance.now();
   const results = await runParallel(picked.map(s => s.id), args.verbose ? 1 : args.jobs, id => runOne(id, args));
-  const bad = report(`Physics scenarios (${args.physics}, seed ${args.seed})`, results, args.strict);
+  const bad = report(`Physics scenarios (seed ${args.seed})`, results, args.strict);
   console.log(`wall clock ${((performance.now() - t0) / 1000).toFixed(1)}s`);
   process.exitCode = bad ? 1 : 0;
 }

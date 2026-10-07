@@ -13,6 +13,9 @@ function check(name: string, ok: boolean, detail: string) {
   if (!ok) failures++;
 }
 
+/** A bare particle store (Fluid is abstract; these tests never step it). */
+class ParticleStore extends Fluid { step() {} }
+
 class Scene {
   f: Fluid; grid: MacGrid; gas: GasState; pressure: Float32Array; residue: Float32Array; ctx: PhaseContext; n: number;
   counts = new Float32Array(0);
@@ -20,7 +23,7 @@ class Scene {
   constructor(public nx: number, public ny: number, maxP = 20000) {
     const h = 2, n = nx * ny;
     this.n = n;
-    this.f = new Fluid(nx, ny, h, maxP);
+    this.f = new ParticleStore(nx, ny, h, maxP);
     this.grid = { nx, ny, h, u: this.f.u, v: this.f.v, s: this.f.s, cellType: new Int32Array(n) };
     this.gas = { air: new Float32Array(n).fill(RHO_AIR), vapor: new Float32Array(n), T: new Float32Array(n).fill(20), pendingAir: new Float32Array(n), pendingVapor: new Float32Array(n) };
     this.pressure = new Float32Array(n).fill(P0);

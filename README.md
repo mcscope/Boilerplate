@@ -10,7 +10,7 @@ a real fluid and heat simulation.
 
 - **Water and oil:** FLIP particle liquid with real pressure, so siphons, U-tubes and the Pythagorean cup all
   work. Oil floats, and the liquids have surface tension.
-- **Air and steam:** in the unified engine, air is a compressible gas solved together with the liquid in a
+- **Air and steam:** air is a compressible gas solved together with the liquid in a
   single pressure solve. Sealed pockets push back, and steam pressure can drive water uphill.
 - **Heat:** conduction, boiling and condensation with latent heat, freezing and melting, and hot-air lift.
 - **Fire:** oil, wax and wood burn above their flash points. Porous wood soaks up fuel, so a thin stick works as
@@ -70,7 +70,7 @@ npm run test:puzzles   # every puzzle: reference solutions solve it, doing nothi
 npm run typecheck:tests
 ```
 
-`test:puzzles` accepts `--physics=classic|unified`, `--only=<name>`, `--seed=<n>`, `--jobs=<n>` and `--strict`.
+`test:puzzles` accepts `--only=<name>`, `--seed=<n>`, `--jobs=<n>` and `--strict`.
 
 ## How it's built
 
@@ -79,10 +79,10 @@ crisply.
 
 | Path | What's there |
 |---|---|
-| `src/sim/fluid.ts` | FLIP/PIC liquid on a staggered MAC grid: particles, pressure projection, cohesion |
+| `src/sim/fluid.ts` | FLIP/PIC liquid particles on a staggered MAC grid: transfer, separation, cohesion, density |
 | `src/sim/thermo.ts` | Temperature, materials (stone, ice, wax, mud, wood, heater), burning, melting |
 | `src/sim/sediment.ts` | Silt transport, settling, erosion, seepage and slumping |
-| `src/sim2/` | The **unified engine**: a single PCG pressure solve (MIC(0) preconditioned) for incompressible liquid and compressible gas, gas advection, and evaporation and condensation |
+| `src/sim2/` | The engine: a single PCG pressure solve (MIC(0) preconditioned) for incompressible liquid and compressible gas, gas advection, and evaporation and condensation |
 | `src/world.ts` | The world: wiring the simulations together, building tools, goals, playground levels |
 | `src/puzzles.ts` | The puzzle campaign |
 | `src/render.ts` | Pixel-art renderer and effects |
@@ -90,8 +90,7 @@ crisply.
 | `src/main.ts` | UI, input (mouse, touch, pen), levels, personal bests |
 | `design/` | Design notes: puzzles, unified physics, rigid bodies, mobile release |
 
-Two physics engines can be switched in the header: **Unified** (the default), where air is a real gas, and
-**Classic**, the original model, which treats air pockets as regions of uniform pressure.
+Air is simulated as a real compressible gas, solved in the same pressure solve as the liquid, so sealed pockets push back, vacuums pull, and steam builds pressure.
 
 ### Roadmap
 

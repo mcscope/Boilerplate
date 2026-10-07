@@ -1,21 +1,18 @@
 /**
  * Shared helpers for the headless validation suites (tests/physics.ts, tests/puzzles.ts).
  *
- * Everything here talks to the engine through World / Fluid / Thermo only, and feature-detects anything that
- * differs between the classic and unified engines, so the same suite runs against both.
+ * Everything here talks to the engine through World / Fluid / Thermo.
  */
 import { Builder, CELL, Level, NX, NY, Rect, World } from '../src/world';
 import { OIL, WATER, WAX } from '../src/sim/fluid';
 import { spawn } from 'child_process';
 import { cpus } from 'os';
 
-export type Physics = 'classic' | 'unified';
 export const DT = 1 / 60;
 
 // ---------------------------------------------------------------- command line
 
 export interface Args {
-  physics: Physics;
   only: string | null;
   strict: boolean;
   jobs: number;
@@ -34,16 +31,11 @@ export function parseArgs(argv = process.argv.slice(2)): Args {
     if (!a) return undefined;
     return a.includes('=') ? a.slice(a.indexOf('=') + 1) : '';
   };
-  const physics = (get('physics') ?? 'classic') as Physics;
-  if (physics !== 'classic' && physics !== 'unified') {
-    console.error(`unknown --physics=${physics} (classic | unified)`);
-    process.exit(2);
-  }
   const jobs = Number(get('jobs') ?? 0) || Math.max(1, Math.min(8, availableCpus() - 1));
   const seed = Number(get('seed') ?? 1);
   seedRandom(seed);
   const seeds = (get('seeds') ?? String(seed)).split(',').map(Number).filter(n => Number.isFinite(n));
-  return { physics, only: get('only') ?? null, strict: get('strict') !== undefined, jobs, verbose: get('verbose') !== undefined, child: get('child') ?? null, seed, seeds };
+  return { only: get('only') ?? null, strict: get('strict') !== undefined, jobs, verbose: get('verbose') !== undefined, child: get('child') ?? null, seed, seeds };
 }
 
 /** Replace Math.random with a seeded generator (mulberry32). */
@@ -64,26 +56,8 @@ function availableCpus() {
 
 // ---------------------------------------------------------------- worlds
 
-/**
- * Construct a World for the given engine. Workstream D adds `new World(physics)`; until that lands the
- * constructor ignores its argument and we get classic, which `engineOf` detects so a unified run can't
- * silently test the classic engine.
- */
-export function makeWorld(physics: Physics): World {
-  const w = new (World as unknown as new (p: Physics) => World)(physics);
-  const got = engineOf(w);
-  if (got !== physics) {
-    console.error(`requested --physics=${physics} but World built a ${got} engine (is the unified engine merged?)`);
-    process.exit(2);
-  }
-  return w;
-}
-
-/** Which engine a world is running, from `world.physics` if World records it, else the Fluid's class. */
-export function engineOf(w: World): Physics {
-  const p = (w as unknown as { physics?: string }).physics;
-  if (p === 'classic' || p === 'unified') return p;
-  return /unified/i.test(w.fluid.constructor.name) ? 'unified' : 'classic';
+export function makeWorld(): World {
+  return new World();
 }
 
 /** Build an inline level and load it. */
@@ -91,8 +65,8 @@ export function level(name: string, build: (b: Builder) => void): Level {
   return { name, desc: '', build };
 }
 
-export function loadWorld(physics: Physics, lvl: Level | ((b: Builder) => void), name = 'test'): World {
-  const w = makeWorld(physics);
+export function loadWorld(lvl: Level | ((b: Builder) => void), name = 'test'): World {
+  const w = makeWorld();
   w.load(typeof lvl === 'function' ? level(name, lvl) : lvl);
   return w;
 }
@@ -199,55 +173,21 @@ export function gasCellsIn(w: World, r: Rect) {
 
 // ---------------------------------------------------------------- gas / vapor (feature-detected)
 
-interface GasArrays { air: Float32Array; vapor: Float32Array; pendingAir?: Float32Array; pendingVapor?: Float32Array }
-
-/** The unified engine's Eulerian gas state, wherever it lives; null on classic. */
-export function unifiedGas(w: World): GasArrays | null {
-  const f = w.fluid as unknown as Record<string, unknown>;
-  for (const cand of [f.gas, f.gasState, f.gasField, f]) {
-    const g = cand as Partial<GasArrays> | undefined;
-    if (g && g.air instanceof Float32Array && g.vapor instanceof Float32Array) return g as GasArrays;
-  }
-  return null;
-}
-
 /**
- * Air and vapor in a rect (whole grid if omitted).
- * - `vapor` is in liquid-particle equivalents so it adds directly to particle counts. Classic: one steam particle
- *   per boiled water particle. Unified: vapor mass density × restDensity (one cell of water = restDensity
- *   particles of mass 1/restDensity each) — adjust here if the phase module maps particles to mass differently.
- * - `air` is in the engine's own units (classic: 1 = one cell at atmosphere; unified: ambient cell = RHO_AIR),
- *   only meaningful for relative change. `null` when the engine doesn't track air in that rect.
+ * Air and vapor in a rect (whole grid if omitted). `vapor` is in liquid-particle equivalents (vapor mass density ×
+ * restDensity) so it adds directly to particle counts; `air` is in the engine's units (an ambient cell = RHO_AIR),
+ * only meaningful for relative change.
  */
-export function gasTotals(w: World, r?: Rect): { air: number | null; vapor: number; engine: 'classic' | 'unified' } {
+export function gasTotals(w: World, r?: Rect): { air: number; vapor: number } {
   const R = r ?? rect(0, 0, NX - 1, NY - 1);
-  const inR = (c: number) => { const i = c % NX, j = (c / NX) | 0; return i >= R.i0 && i <= R.i1 && j >= R.j0 && j <= R.j1; };
-  const g = unifiedGas(w);
-  if (g) {
-    let air = 0, vapor = 0;
-    for (let c = 0; c < NX * NY; c++) {
-      if (!inR(c)) continue;
-      air += g.air[c] + (g.pendingAir?.[c] ?? 0);
-      vapor += g.vapor[c] + (g.pendingVapor?.[c] ?? 0);
-    }
-    return { air, vapor: vapor * w.fluid.restDensity, engine: 'unified' };
+  const g = w.unified.gasState;
+  let air = 0, vapor = 0;
+  for (let j = R.j0; j <= R.j1; j++) for (let i = R.i0; i <= R.i1; i++) {
+    const c = i + j * NX;
+    air += g.air[c] + g.pendingAir[c];
+    vapor += g.vapor[c] + g.pendingVapor[c];
   }
-  // Classic: per-cell gas amounts of air regions, steam as particles in Thermo.
-  const f = w.fluid, t = w.thermo;
-  let air = 0, any = false;
-  if (f.gas instanceof Float32Array) {
-    for (let c = 0; c < NX * NY; c++) {
-      if (!inR(c) || f.region[c] < 0 || f.regionAtmosphere[f.region[c]]) continue;
-      air += f.gas[c];
-      any = true;
-    }
-  }
-  let vapor = 0;
-  for (let k = 0; k < t.steamCount; k++) {
-    const i = t.sx[k] / CELL, j = t.sy[k] / CELL;
-    if (i >= R.i0 && i < R.i1 + 1 && j >= R.j0 && j < R.j1 + 1) vapor++;
-  }
-  return { air: any ? air : null, vapor, engine: 'classic' };
+  return { air, vapor: vapor * w.fluid.restDensity };
 }
 
 // ---------------------------------------------------------------- reporting
@@ -330,12 +270,13 @@ export async function runParallel<T>(names: string[], jobs: number, inProcess: (
   return out;
 }
 
-/** ASCII picture of a cell rect for debugging: # solid, digits = particles per cell (9+ = 9), ~ steam, . empty. */
+/** ASCII picture of a cell rect for debugging: # solid, digits = particles per cell (9+ = 9), ~ vapor, . empty. */
 export function ascii(w: World, r: Rect) {
   const f = w.fluid, cnt = new Map<number, number>(), steam = new Set<number>();
   const cellOf = (x: number, y: number) => Math.floor(x / CELL) + Math.floor(y / CELL) * NX;
   for (let k = 0; k < f.count; k++) { const c = cellOf(f.pos[2 * k], f.pos[2 * k + 1]); cnt.set(c, (cnt.get(c) ?? 0) + 1); }
-  for (let k = 0; k < w.thermo.steamCount; k++) steam.add(cellOf(w.thermo.sx[k], w.thermo.sy[k]));
+  const vapor = w.unified.gasState.vapor;
+  for (let c = 0; c < vapor.length; c++) if (vapor[c] > 0.002) steam.add(c);
   const lines: string[] = [];
   for (let j = r.j0; j <= r.j1; j++) {
     let s = `${String(j).padStart(3)} `;

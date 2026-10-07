@@ -1,8 +1,7 @@
 /**
  * Puzzle harness: every puzzle in src/puzzles.ts, run headlessly.
  *
- *   npm run test:puzzles                               # classic engine, all puzzles in parallel
- *   npm run test:puzzles -- --physics=unified
+ *   npm run test:puzzles                               # all puzzles in parallel
  *   npm run test:puzzles -- --only=6c --jobs=1
  *
  * For each puzzle:
@@ -17,7 +16,7 @@
 import { CELL, Level, World, puzzleGoals } from '../src/world';
 import { PUZZLES } from '../src/puzzles';
 import { STONE, WOOD } from '../src/sim/thermo';
-import { DT, Physics, RESULT_TAG, makeWorld, parseArgs, seedRandom, runParallel, table } from './lib';
+import { DT, RESULT_TAG, makeWorld, parseArgs, seedRandom, runParallel, table } from './lib';
 
 type Spend = (mat: number, tool: string, i0: number, j0: number, i1: number, j1: number) => void;
 /** Fire at (x, y) px for this frame, if fire budget remains. */
@@ -34,6 +33,8 @@ interface Solution {
   stale?: string;
   build?: (spend: Spend, w: World) => void;
   act?: (frame: number, fire: Fire, w: World) => void;
+  /** Time limit, if it needs longer than SOLUTION_SECONDS (e.g. wax that has to fill and cool). */
+  seconds?: number;
 }
 
 const NO_INPUT_SECONDS = 60;
@@ -43,7 +44,26 @@ const FIRE_RADIUS = 6;
 /** Light a fire at (x, y) for the first `frames` frames. */
 const torch = (x: number, y: number, frames = 24) => (frame: number, fire: Fire) => { if (frame < frames) fire(x, y); };
 
+/** Casting: a chute from the wax spout to the statue's top. */
+const castingChute = (spend: Spend) => { for (let i = 12; i <= 77; i++) { const j = Math.round(22 + (i - 12) * 0.25); spend(STONE, 'wall', i, j, i, j + 1); } };
+
 const SOLUTIONS: Record<string, Solution[]> = {
+  '7. Casting': [{
+    label: 'full mold + sprue', expect: 'solve', seconds: 300,
+    build: (spend, w) => {
+      const goal = w.level!.puzzle!.goal, z = goal.zone, shape = goal.shape!;
+      // Mold: every cell of the statue's box (plus a 2-cell ring) that isn't statue.
+      for (let j = z.j0; j <= z.j1; j++) for (let i = z.i0 - 2; i <= z.i1 + 2; i++)
+        if (shape[j - z.j0]?.[i - z.i0] !== '#') spend(STONE, 'wall', i, j, i, j);
+      // Sprue: a wide pour channel down into the top knot (statue columns 76-83), open at the top for air.
+      spend(STONE, 'wall', 74, 40, 75, 51); spend(STONE, 'wall', 84, 40, 85, 51);
+      castingChute(spend);
+    },
+  }, {
+    label: 'chute only, no mold', expect: 'fail', seconds: 300,
+    build: spend => castingChute(spend),
+  }],
+
   '1. First Pour': [{
     label: 'long gentle chute', expect: 'solve',
     build: spend => { for (let i = 14; i <= 112; i++) { const j = Math.round(30 + (i - 14) * 0.24); spend(STONE, 'wall', i, j, i, j + 1); } },
@@ -119,7 +139,7 @@ const SOLUTIONS: Record<string, Solution[]> = {
   }],
   '6. Steam Pump': [{
     label: 'dip tube below the waterline', expect: 'solve',
-    stale: 'crossover spills outside the cup wall (i=117 vs cup at 118); fixing that still lifts only ~20 in classic',
+    stale: 'crossover spills outside the cup wall (i=117 vs cup at 118)',
     build: spend => {
       // Dip tube inside the boiler: from the hole, down to near the floor (open at the bottom).
       spend(STONE, 'wall', 83, 41, 88, 41); // cap over the tube
@@ -156,18 +176,18 @@ interface JobResult extends Job { solved: boolean; at: number; detail: string; w
 function jobsFor(lvl: Level, seed: number): Job[] {
   const jobs: Job[] = [{ puzzle: lvl.name, kind: 'no input', label: '-', expect: 'fail', seconds: NO_INPUT_SECONDS, seed }];
   for (const s of SOLUTIONS[lvl.name] ?? [])
-    jobs.push({ puzzle: lvl.name, kind: s.expect === 'solve' ? 'reference' : 'negative', label: s.label, expect: s.expect, seconds: SOLUTION_SECONDS, stale: s.stale, seed });
+    jobs.push({ puzzle: lvl.name, kind: s.expect === 'solve' ? 'reference' : 'negative', label: s.label, expect: s.expect, seconds: s.seconds ?? SOLUTION_SECONDS, stale: s.stale, seed });
   return jobs;
 }
 
 const jobKey = (j: Job) => `${j.puzzle}::${j.label}::${j.seed}`;
 
-function runJob(job: Job, physics: Physics): JobResult {
+function runJob(job: Job): JobResult {
   seedRandom(job.seed);
   const t0 = performance.now();
   const lvl = PUZZLES.find(p => p.name === job.puzzle)!;
   const sol = job.kind === 'no input' ? null : SOLUTIONS[job.puzzle].find(s => s.label === job.label)!;
-  const w = makeWorld(physics);
+  const w = makeWorld();
   w.load(lvl);
   const tools = lvl.puzzle!.tools;
   const budget: Record<string, number> = { ...tools };
@@ -199,7 +219,7 @@ function runJob(job: Job, physics: Physics): JobResult {
     const p = [`amount ${g.amount}/${goal.amount}`];
     if (goal.minPurity !== undefined) p.push(`purity ${g.purity.toFixed(2)}`);
     if (goal.maxSilt !== undefined) p.push(`silt ${g.silt.toFixed(3)}`);
-    if (goal.minTemp !== undefined) p.push(`temp ${g.temp.toFixed(0)}`);
+    if (goal.minTemp !== undefined || goal.maxTemp !== undefined) p.push(`temp ${g.temp.toFixed(0)}`);
     return p.join(', ');
   });
   return { ...job, solved: w.goal.solved, at: w.goal.solved ? w.time : NaN, detail: parts.join(' | '), wall: (performance.now() - t0) / 1000, error };
@@ -213,10 +233,9 @@ async function main() {
   if (args.child) {
     const job = all.find(j => jobKey(j) === args.child);
     if (!job) { console.error(`no job ${args.child}`); process.exit(2); }
-    console.log(RESULT_TAG + JSON.stringify(runJob(job, args.physics)));
+    console.log(RESULT_TAG + JSON.stringify(runJob(job)));
     return;
   }
-  makeWorld(args.physics); // fail fast if this engine isn't available
   for (const name of Object.keys(SOLUTIONS))
     if (!PUZZLES.some(p => p.name === name)) console.log(`warning: SOLUTIONS has an entry for "${name}", which is not in PUZZLES`);
   const jobs = all.filter(j => !args.only || j.puzzle.startsWith(args.only));
@@ -224,7 +243,7 @@ async function main() {
   const t0 = performance.now();
   // Longest jobs first so the pool finishes evenly.
   const order = [...jobs].sort((a, b) => b.seconds - a.seconds);
-  const done = await runParallel(order.map(jobKey), args.jobs, key => runJob(order.find(j => jobKey(j) === key)!, args.physics));
+  const done = await runParallel(order.map(jobKey), args.jobs, key => runJob(order.find(j => jobKey(j) === key)!));
   const byKey = new Map(done.map(r => [jobKey(r), r]));
   const results = jobs.map(j => byKey.get(jobKey(j))!);
 
@@ -242,7 +261,7 @@ async function main() {
     if (!working)
       rows.push([lvl.name, 'reference', ...(multi ? ['-'] : []), 'solve', HUMAN_VERIFIED.has(lvl.name) ? 'human-verified' : 'MISSING', 'no working scripted solution', '-']);
   }
-  console.log(`\nPuzzles (${args.physics}, seed${multi ? 's' : ''} ${args.seeds.join(', ')})\n`);
+  console.log(`\nPuzzles (seed${multi ? 's' : ''} ${args.seeds.join(', ')})\n`);
   console.log(table(rows));
   const bad = results.filter(r => !ok(r) && (args.strict || !r.stale));
   for (const r of new Map(results.filter(r => !ok(r) && r.stale).map(r => [r.label, r])).values()) console.log(`\nstale: ${r.puzzle} / ${r.label}: ${r.stale}`);
