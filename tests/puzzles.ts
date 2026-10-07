@@ -107,15 +107,7 @@ const SOLUTIONS: Record<string, Solution[]> = {
     label: 'fire only, no hood', expect: 'fail',
     act: torch(118, 158),
   }],
-  '6. Oil Press': [{
-    label: 'seal the crack + fire', expect: 'solve',
-    build: spend => { spend(STONE, 'wall', 30, 40, 32, 41); },
-    act: torch(70, 147),
-  }, {
-    label: 'fire without sealing', expect: 'fail',
-    act: torch(70, 147),
-  }],
-  '6b. Water Bridge': [{
+  '6a. Water Bridge': [{
     label: 'dip tube + pipe to the oil tank', expect: 'solve',
     build: spend => {
       spend(STONE, 'wall', 44, 42, 48, 42); spend(STONE, 'wall', 44, 43, 44, 58); spend(STONE, 'wall', 48, 46, 48, 58); // dip tube inside the boiler
@@ -125,24 +117,7 @@ const SOLUTIONS: Record<string, Solution[]> = {
     },
     act: torch(70, 147),
   }],
-  '6c. Skim the Top': [{
-    label: 'plug the low outlet, riser from the top', expect: 'solve',
-    build: spend => {
-      spend(STONE, 'wall', 113, 57, 113, 61); // plug the low outlet
-      spend(STONE, 'wall', 105, 28, 105, 43); spend(STONE, 'wall', 109, 30, 109, 43);
-      spend(STONE, 'wall', 105, 27, 121, 27); spend(STONE, 'wall', 110, 31, 117, 31);
-    },
-    act: torch(70, 147),
-  }, {
-    label: 'riser drawn from the bottom outlet', expect: 'fail',
-    build: spend => {
-      spend(STONE, 'wall', 106, 43, 108, 43); // plug the lid outlet
-      spend(STONE, 'wall', 113, 61, 116, 61); spend(STONE, 'wall', 113, 27, 113, 57); spend(STONE, 'wall', 117, 31, 117, 61);
-      spend(STONE, 'wall', 113, 27, 121, 27);
-    },
-    act: torch(70, 147),
-  }],
-  '7. Steam Pump': [{
+  '6. Steam Pump': [{
     label: 'dip tube below the waterline', expect: 'solve',
     stale: 'crossover spills outside the cup wall (i=117 vs cup at 118); fixing that still lifts only ~20 in classic',
     build: spend => {

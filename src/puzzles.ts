@@ -206,37 +206,7 @@ export const PUZZLES: Level[] = [
     },
   },
   {
-    name: '6. Oil Press',
-    desc: 'Get oil from the sealed tank up into the cup. There is a boiler next door.',
-    puzzle: {
-      goal: { zone: { i0: 120, j0: 32, i1: 139, j1: 40 }, kind: OIL, amount: 120, minPurity: 0.85, label: '120 oil in the cup, at least 85% pure' },
-      tools: { wall: Infinity, fire: 0.4 },
-      hint: 'Oil won\'t boil, so it has to be pushed. Steam pressure can push the boiler\'s water into the oil tank, and the water lifts the oil, but only if the steam can\'t escape.',
-    },
-    build: b => { oilPress(b, { waterPipe: true, crack: true, riser: true }); b.drain(1, 88, 158, 88); },
-  },
-  {
-    name: '6b. Water Bridge',
-    desc: 'The same tanks, but nothing connects the boiler to the oil.',
-    puzzle: {
-      goal: { zone: { i0: 120, j0: 32, i1: 139, j1: 40 }, kind: OIL, amount: 120, minPurity: 0.85, label: '120 oil in the cup, at least 85% pure' },
-      tools: { wall: Infinity, fire: 0.4 },
-      hint: 'Build a sealed pipe from the boiler to the bottom of the oil tank. Start it below the boiler\'s waterline, or the steam will just escape through it.',
-    },
-    build: b => { oilPress(b, { waterPipe: false, crack: false, riser: true }); b.drain(1, 88, 158, 88); },
-  },
-  {
-    name: '6c. Skim the Top',
-    desc: 'The tanks are connected, but there is no way out of the oil tank.',
-    puzzle: {
-      goal: { zone: { i0: 120, j0: 32, i1: 139, j1: 40 }, kind: OIL, amount: 120, minPurity: 0.85, label: '120 oil in the cup, at least 85% pure' },
-      tools: { wall: Infinity, fire: 0.4 },
-      hint: 'Water comes in at the bottom of the oil tank and pushes the oil up. Draw your pipe from the top of the tank, or you will get water instead of oil.',
-    },
-    build: b => { oilPress(b, { waterPipe: true, crack: false, riser: false }); b.drain(1, 88, 158, 88); },
-  },
-  {
-    name: '7. Steam Pump',
+    name: '6. Steam Pump',
     desc: 'A sealed boiler with one hole in its side, and a cup far above it. Get the boiler\'s water into the cup.',
     puzzle: {
       goal: { zone: { i0: 120, j0: 12, i1: 141, j1: 28 }, kind: WATER, amount: 120, label: 'Lift 120 water into the high cup' },
@@ -256,5 +226,15 @@ export const PUZZLES: Level[] = [
       b.solid(118, 12, 119, 30); b.solid(142, 12, 143, 30); b.solid(118, 29, 143, 30);
       b.drain(1, 88, 158, 88);
     },
+  },
+  {
+    name: '6a. Water Bridge',
+    desc: 'The same tanks, but nothing connects the boiler to the oil.',
+    puzzle: {
+      goal: { zone: { i0: 120, j0: 32, i1: 139, j1: 40 }, kind: OIL, amount: 120, minPurity: 0.85, label: '120 oil in the cup, at least 85% pure' },
+      tools: { wall: Infinity, fire: 0.4 },
+      hint: 'Build a sealed pipe from the boiler to the bottom of the oil tank. Start it below the boiler\'s waterline, or the steam will just escape through it.',
+    },
+    build: b => { oilPress(b, { waterPipe: false, crack: false, riser: true }); b.drain(1, 88, 158, 88); },
   },
 ];
