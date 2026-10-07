@@ -354,3 +354,8 @@ main { grid-template-columns: minmax(0, 1fr) 320px; }
   header, main { display: none; }
 }
 @keyframes tilt { 0%, 40% { transform: rotate(0deg); } 60%, 100% { transform: rotate(-90deg); } }
+
+/* Solved check sits at the right end of the puzzle's name line, not on a line of its own. */
+.levels button { position: relative; padding-right: calc(var(--px) * 14); }
+.levels button.done::after { position: absolute; right: calc(var(--px) * 6); top: calc(var(--px) * 3); }
+.levels button.done:active::after, .levels button.done.active::after { top: calc(var(--px) * 4); right: calc(var(--px) * 5); }
