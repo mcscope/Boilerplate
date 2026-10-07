@@ -1,6 +1,6 @@
 import { Fluid, OIL, WATER, WAX } from './sim/fluid';
 import { CELL_OF_MUD, Sediment } from './sim/sediment';
-import { AMBIENT, ICE, MUD, NONE, STEAM_VAPOR, STONE, Thermo, WAX_SOLID, WOOD, WOOD_FUEL } from './sim/thermo';
+import { AMBIENT, HEATER, ICE, MUD, NONE, STEAM_VAPOR, STONE, Thermo, WAX_SOLID, WOOD, WOOD_FUEL } from './sim/thermo';
 import { UnifiedFluid } from './sim2/unified';
 
 /** Screen is W×H pixels; the simulation grid uses CELL×CELL pixel cells. */
@@ -75,6 +75,14 @@ export class Builder {
   wax(i0: number, j0: number, i1: number, j1: number) { this.fill(i0, j0, i1, j1, WAX_SOLID); }
   mud(i0: number, j0: number, i1: number, j1: number) { this.fill(i0, j0, i1, j1, MUD); }
   wood(i0: number, j0: number, i1: number, j1: number) { this.fill(i0, j0, i1, j1, WOOD); }
+  /** A heating element held at `temp` °C. */
+  heater(i0: number, j0: number, i1: number, j1: number, temp: number) {
+    this.fill(i0, j0, i1, j1, HEATER);
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      this.world.thermo.setT[i + j * NX] = temp;
+      this.world.thermo.T[i + j * NX] = temp;
+    }
+  }
   /** Wood pre-soaked with liquid fuel (particles per cell), like a candle wick that's been dipped in wax. */
   soakedWood(i0: number, j0: number, i1: number, j1: number, soak: number) {
     this.fill(i0, j0, i1, j1, WOOD);
@@ -188,7 +196,8 @@ export class World {
         if ((i + 0.5 - ci) ** 2 + (j + 0.5 - cj) ** 2 > rc * rc) continue;
         if (i <= 0 || j <= 0 || i >= NX - 1 || j >= NY - 1) continue;
         const c = i + j * NX, old = this.thermo.mat[c];
-        if (this.locked[c] || old === mat || this.inNoBuild(i, j)) continue;
+        // Level terrain is locked only in puzzles; in the playground everything can be erased or painted over.
+        if ((this.level?.puzzle && this.locked[c]) || old === mat || this.inNoBuild(i, j)) continue;
         if (mat !== NONE) {
           if (placed >= budget) continue;
           placed++;
@@ -394,6 +403,20 @@ export const LEVELS: Level[] = [
       b.heat(56, 75, 105, 80, 400);
       b.oil(62, 66, 99, 74, 320);
       b.faucet(150, 6, 4, 120, false, WATER);
+    },
+  },
+  {
+    name: 'Lava Lamp',
+    desc: 'A sealed lamp of warm oil with a heater at the bottom, set below boiling. Wax melts and warms on the heater and rises, cools near the top and sinks again.',
+    build: b => {
+      // Lamp body (stone stands in for glass), capped top and bottom.
+      b.solid(68, 16, 69, 80); b.solid(91, 16, 92, 80); b.solid(68, 14, 92, 15);
+      b.solid(66, 80, 94, 82);
+      // The bulb: a heater across the base.
+      b.heater(70, 78, 90, 79, 95);
+      // Warm lamp oil, with a pool of molten wax resting on the heater.
+      b.oil(70, 17, 90, 71, 72);
+      b.moltenWax(73, 72, 87, 77);
     },
   },
   {

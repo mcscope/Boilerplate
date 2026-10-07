@@ -1,5 +1,5 @@
 import { AIR } from './sim/fluid';
-import { ICE, MUD, WAX_SOLID, WOOD, WOOD_FUEL } from './sim/thermo';
+import { HEATER, ICE, MUD, WAX_SOLID, WOOD, WOOD_FUEL } from './sim/thermo';
 import { GAS, P0, RHO_AIR, SOLID, T_AMBIENT, VAPOR_MOLAR_RATIO, saturatedVapor } from './sim2/types';
 import { CELL, H, NX, NY, W, World } from './world';
 
@@ -189,7 +189,13 @@ export class Renderer {
       const i = Math.floor(x / CELL), j = Math.floor(y / CELL);
       let c: RGB;
       const mat = this.matAt(world, i, j);
-      if (mat === WOOD) {
+      if (mat === HEATER) {
+        // Heater: dark metal housing with a glowing orange coil running through it.
+        c = [58, 54, 62];
+        if ((x + Math.floor(y / 2)) % 4 === 0) c = [70, 66, 76];
+        if (y % CELL === 0 && (x % 6 < 3)) c = [255, 150, 60];
+        if (y % CELL === 0 && (x % 6 === 1)) c = [255, 214, 120];
+      } else if (mat === WOOD) {
         // Wood: horizontal planks with grain lines, knots, and dark seams between planks.
         const plank = Math.floor(y / 4);
         const tone = hash(plank, Math.floor((x + plank * 7) / 12), 17);

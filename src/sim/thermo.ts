@@ -26,6 +26,8 @@ export const ICE = 2;
 export const WAX_SOLID = 3;
 export const MUD = 4;
 export const WOOD = 5;
+/** Heater: a solid element held at its own set temperature (a lamp bulb, a hot plate). */
+export const HEATER = 7;
 
 /** Seconds a cell of wood burns before it's gone. */
 export const WOOD_FUEL = 10;
@@ -84,6 +86,8 @@ export class Thermo {
   T: Float32Array;
   /** Solid material per cell. */
   mat: Uint8Array;
+  /** Set temperature of each heater cell. */
+  setT: Float32Array;
   /** Incremented whenever ice forms or melts, so the renderer can redraw solids. */
   solidChanges = 0;
   /**
@@ -143,6 +147,7 @@ export class Thermo {
     const n = this.nx * this.ny;
     this.T = new Float32Array(n).fill(AMBIENT);
     this.mat = new Uint8Array(n);
+    this.setT = new Float32Array(n);
     this.melt = new Float32Array(n);
     this.residue = new Float32Array(n);
     this.fuel = new Float32Array(n);
@@ -162,6 +167,7 @@ export class Thermo {
   reset() {
     this.T.fill(AMBIENT);
     this.mat.fill(NONE);
+    this.setT.fill(0);
     this.melt.fill(0);
     this.pending.fill(0);
     this.residue.fill(0);
@@ -388,6 +394,7 @@ export class Thermo {
     const f = this.fluid, ct = f.cellType;
     for (let c = 0; c < nx * ny; c++) {
       if (mat[c] === ICE) { k[c] = K_ICE; cap[c] = 1; }
+      else if (mat[c] === HEATER) { k[c] = K_STONE; cap[c] = 1; }
       else if (mat[c] === WAX_SOLID) { k[c] = K_WAX; cap[c] = 1; }
       else if (mat[c] === WOOD) { k[c] = K_WOOD; cap[c] = 1; }
       else if (f.s[c] === 0) { k[c] = K_STONE; cap[c] = 1; }
@@ -420,6 +427,7 @@ export class Thermo {
       if (ct[c] === AIR) r = f.region[c] >= 0 && f.regionAtmosphere[f.region[c]] ? 0.4 : 0.02;
       else if (mat[c] === STONE) r = 0.02;
       T[c] += (AMBIENT - T[c]) * Math.min(1, r * dt);
+      if (mat[c] === HEATER) T[c] = this.setT[c]; // the element holds its set temperature
     }
   }
 

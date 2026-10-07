@@ -18,13 +18,17 @@ export const OIL = 1;
 export const WAX = 2;
 /** Relative density per liquid kind: oil floats on molten wax, which floats on water. */
 export const LIQUID_DENSITY = [1, 0.7, 0.9];
-/** Hot liquid is lighter (exaggerated for gameplay), which drives convection: hot water rises. */
-const THERMAL_EXPANSION = 0.0015;
+/**
+ * Hot liquid is lighter (exaggerated for gameplay), which drives convection: hot water rises. Per liquid kind:
+ * molten wax expands far more with heat than water or oil (as real paraffin does), so warm wax is lighter than
+ * the lamp oil and cooler wax is heavier: that crossover is what makes a lava lamp work.
+ */
+const THERMAL_EXPANSION = [0.0015, 0.0015, 0.0056];
 /** Suspended silt makes water heavier, so muddy water sinks under clear water. */
 const SILT_DENSITY = 0.25;
 function particleDensity(kind: number, temp: number, silt: number) {
   const t = temp < 0 ? 0 : temp > 100 ? 100 : temp;
-  return LIQUID_DENSITY[kind] * (1 - THERMAL_EXPANSION * (t - 20)) * (1 + SILT_DENSITY * silt);
+  return LIQUID_DENSITY[kind] * (1 - THERMAL_EXPANSION[kind] * (t - 20)) * (1 + SILT_DENSITY * silt);
 }
 
 /**
