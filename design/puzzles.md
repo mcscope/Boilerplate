@@ -78,8 +78,8 @@ Steam in a sealed space builds pressure and does work.
 
 ### 8. Solidification: liquids set into shapes
 Molten wax flows while hot and sets where it cools, so molds shape it.
-- **8. Casting:** build a mold and cast a statue from poured wax.
-- **8a. Pawn:** melt a wax block with a wood fire, without burning it, and cast a pawn. Combines solidification with heat (ch. 5).
+- **8. Casting:** melt a wax block with a wood fire and cast a small statue.
+- **8a. Pawn:** hot water melts a wax block; cast a pawn, keeping the (heavier) water out of the mold.
 
 ### 9. Latent heat: melting absorbs heat
 Ice soaks up a lot of heat as it melts, so water that runs over ice comes off cold.
