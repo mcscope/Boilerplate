@@ -14,7 +14,7 @@ function check(name: string, ok: boolean, info: string) {
 function makeScene(nx = NX, ny = NY) {
   const n = nx * ny;
   const grid: MacGrid = { nx, ny, h: H, u: new Float32Array(n), v: new Float32Array(n), s: new Float32Array(n), cellType: new Int32Array(n) };
-  const gas: GasState = { air: new Float32Array(n), vapor: new Float32Array(n), T: new Float32Array(n).fill(20), pendingAir: new Float32Array(n), pendingVapor: new Float32Array(n) };
+  const gas: GasState = { air: new Float32Array(n), vapor: new Float32Array(n), T: new Float32Array(n).fill(20), pendingAir: new Float32Array(n), pendingVapor: new Float32Array(n), alcVapor: new Float32Array(n), pendingAlc: new Float32Array(n) };
   const liquid: LiquidFields = { rho: new Float32Array(n), density: new Float32Array(n), restDensity: 1 };
   for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
     const c = i + j * nx;

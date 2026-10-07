@@ -25,15 +25,15 @@ class Scene {
     this.n = n;
     this.f = new ParticleStore(nx, ny, h, maxP);
     this.grid = { nx, ny, h, u: this.f.u, v: this.f.v, s: this.f.s, cellType: new Int32Array(n) };
-    this.gas = { air: new Float32Array(n).fill(RHO_AIR), vapor: new Float32Array(n), T: new Float32Array(n).fill(20), pendingAir: new Float32Array(n), pendingVapor: new Float32Array(n) };
+    this.gas = { air: new Float32Array(n).fill(RHO_AIR), vapor: new Float32Array(n), T: new Float32Array(n).fill(20), pendingAir: new Float32Array(n), pendingVapor: new Float32Array(n), alcVapor: new Float32Array(n), pendingAlc: new Float32Array(n) };
     this.pressure = new Float32Array(n).fill(P0);
     this.residue = new Float32Array(n);
     const f = this.f;
     this.ctx = {
       grid: this.grid, gas: this.gas, pressure: this.pressure, dt: 1 / 240, residue: this.residue,
       particles: {
-        get count() { return f.count; }, pos: f.pos, vel: f.vel, kind: f.kind, temp: f.temp, silt: f.silt,
-        add: (x: number, y: number, vx: number, vy: number, k: number, t: number, s: number) => f.addParticle(x, y, vx, vy, k, t, s),
+        get count() { return f.count; }, pos: f.pos, vel: f.vel, kind: f.kind, temp: f.temp, silt: f.silt, alc: f.alc,
+        add: (x: number, y: number, vx: number, vy: number, k: number, t: number, s: number, a: number) => f.addParticle(x, y, vx, vy, k, t, s, a),
         remove: (k: number) => f.removeParticle(k),
       },
       restDensity: f.restDensity,

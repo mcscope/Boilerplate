@@ -258,7 +258,24 @@ export const PUZZLES: Level[] = [
     },
   },
   {
-    name: '5c. Muddy Still',
+    name: '5c. Column Still',
+    desc: 'A vat of mash (15% alcohol) stands over an empty firebox. Collect strong spirits in the marked area on the right.',
+    puzzle: {
+      goal: { zone: { i0: 120, j0: 66, i1: 140, j1: 85 }, kind: WATER, amount: 80, minAlcohol: 0.4, label: '80 spirits, at least 40% alcohol' },
+      tools: { wall: Infinity, wood: Infinity, fire: 0.4 },
+      hint: 'Alcohol boils off more easily than water, so the first vapor is stronger than the mash, but only somewhat. Vapor that cools partway up a tall column drips back down, and what keeps climbing gets stronger each time.',
+    },
+    build: b => {
+      // The vat, on stone legs, with room under it for a fire.
+      b.solid(14, 50, 15, 71); b.solid(40, 50, 41, 71); b.solid(14, 70, 41, 71);
+      b.solid(16, 72, 17, 85); b.solid(38, 72, 39, 85);
+      b.mash(16, 56, 39, 69, 0.15);
+      b.solid(8, 86, 48, 87); // ground under the firebox
+      b.drain(1, 88, 158, 88);
+    },
+  },
+  {
+    name: '5d. Muddy Still',
     desc: 'Muddy water pours from the left. Get perfectly clean water into the marked area on the right.',
     puzzle: {
       goal: { zone: { i0: 122, j0: 66, i1: 142, j1: 85 }, kind: WATER, amount: 150, maxSilt: 0.02, label: '150 water, under 2% dirt' },

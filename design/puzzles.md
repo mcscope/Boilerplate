@@ -65,7 +65,8 @@ Liquids layer by density, so a tank can sort them, and whatever floats on top ca
 Fire heats, water boils, and steam condenses on cool surfaces.
 - **5. Kindling:** a wood fire under a pot.
 - **5b. Still:** boil, then catch the condensed steam in another beaker.
-- **5c. Muddy Still:** distillation leaves the dirt behind. Combines heat with suspension (ch. 3).
+- **5c. Column Still:** separate alcohol from a mash. A pot still only gets partway; a tall column that refluxes concentrates it. (Alcohol vapor is flammable.)
+- **5d. Muddy Still:** distillation leaves the dirt behind. Combines heat with suspension (ch. 3).
 
 ### 6. Combustion: fire spreads
 Fire travels along fuel and through the air. One spark has to reach everything.

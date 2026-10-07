@@ -36,6 +36,8 @@ export class UnifiedFluid extends Fluid {
       T: new Float32Array(n).fill(T_AMBIENT),
       pendingAir: new Float32Array(n),
       pendingVapor: new Float32Array(n),
+      alcVapor: new Float32Array(n),
+      pendingAlc: new Float32Array(n),
     };
     this.pressure = new Float32Array(n);
     this.savedU = new Float32Array(n);
@@ -55,7 +57,8 @@ export class UnifiedFluid extends Fluid {
         get kind() { return self.kind; },
         get temp() { return self.temp; },
         get silt() { return self.silt; },
-        add: (x, y, vx, vy, kind, temp, silt) => self.addParticle(x, y, vx, vy, kind, temp, silt),
+        get alc() { return self.alc; },
+        add: (x, y, vx, vy, kind, temp, silt, alc) => self.addParticle(x, y, vx, vy, kind, temp, silt, alc),
         remove: k => self.removeParticle(k),
       },
       dt: 0,
@@ -87,6 +90,8 @@ export class UnifiedFluid extends Fluid {
     this.gasReady = false;
     this.gasState.air.fill(0);
     this.gasState.vapor.fill(0);
+    this.gasState.alcVapor.fill(0);
+    this.gasState.pendingAlc.fill(0);
     this.gasState.pendingAir.fill(0);
     this.gasState.pendingVapor.fill(0);
     this.pressure.fill(0);
@@ -102,6 +107,8 @@ export class UnifiedFluid extends Fluid {
     }
     this.gasState.pendingAir.fill(0);
     this.gasState.pendingVapor.fill(0);
+    this.gasState.alcVapor.fill(0);
+    this.gasState.pendingAlc.fill(0);
     this.prevType.set(ct);
     this.gasReady = true;
   }

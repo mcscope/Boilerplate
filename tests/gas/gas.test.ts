@@ -25,7 +25,7 @@ function makeGrid(): MacGrid {
 }
 function makeGas(g: MacGrid, fill = RHO_AIR): GasState {
   const n = g.nx * g.ny;
-  const s: GasState = { air: new Float32Array(n), vapor: new Float32Array(n), T: new Float32Array(n).fill(20), pendingAir: new Float32Array(n), pendingVapor: new Float32Array(n) };
+  const s: GasState = { air: new Float32Array(n), vapor: new Float32Array(n), T: new Float32Array(n).fill(20), pendingAir: new Float32Array(n), pendingVapor: new Float32Array(n), alcVapor: new Float32Array(n), pendingAlc: new Float32Array(n) };
   for (let c = 0; c < n; c++) if (g.cellType[c] === GAS) s.air[c] = fill;
   return s;
 }

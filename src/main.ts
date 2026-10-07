@@ -57,6 +57,7 @@ let lastGoalHtml = '';
 const solved = new Set<string>();
 /** Puzzles that were renumbered: old saved name → current name, so solved marks and bests carry over. */
 const RENAMED: Record<string, string> = {
+  '5c. Muddy Still': '5d. Muddy Still',
   '5d. Fire Bomb': '6. Fire Bomb',
   '6. Steam Pump': '7. Steam Pump',
   '6a. Water Bridge': '7a. Water Bridge',
@@ -258,6 +259,7 @@ function goalChecks(goal: Goal, g: GoalStatus) {
   if (goal.minPurity !== undefined) checks.push(`Purity <b class="${g.purity >= goal.minPurity ? 'ok' : 'bad'}">${Math.round(g.purity * 100)}%</b> (need ${Math.round(goal.minPurity * 100)}%)`);
   if (goal.maxSilt !== undefined) checks.push(`Dirt <b class="${g.silt <= goal.maxSilt ? 'ok' : 'bad'}">${Math.round(g.silt * 100)}%</b> (max ${Math.round(goal.maxSilt * 100)}%)`);
   if (goal.maxExtra !== undefined) checks.push(`Spill <b class="${(g.extra ?? 0) <= goal.maxExtra ? 'ok' : 'bad'}">${g.extra ?? 0}</b> (max ${goal.maxExtra})`);
+  if (goal.minAlcohol !== undefined) checks.push(`Alcohol <b class="${(g.alcohol ?? 0) >= goal.minAlcohol ? 'ok' : 'bad'}">${Math.round((g.alcohol ?? 0) * 100)}%</b> (need ${Math.round(goal.minAlcohol * 100)}%)`);
   if (goal.maxTemp !== undefined) checks.push(`Temperature <b class="${g.temp <= goal.maxTemp ? 'ok' : 'bad'}">${Math.round(g.temp)}°</b> (max ${goal.maxTemp}°)`);
   if (goal.minTemp !== undefined) checks.push(`Temperature <b class="${g.temp >= goal.minTemp ? 'ok' : 'bad'}">${Math.round(g.temp)}°</b> (need ${goal.minTemp}°)`);
   return checks;

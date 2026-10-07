@@ -1,3 +1,4 @@
+import { WATER as WATER_KIND } from './sim/fluid';
 import { HEATER, ICE, MUD, WAX_SOLID, WOOD, WOOD_FUEL } from './sim/thermo';
 import { GAS, P0, RHO_AIR, SOLID, T_AMBIENT, VAPOR_MOLAR_RATIO, saturatedVapor } from './sim2/types';
 import { CELL, Goal, GoalStatus, H, NX, NY, W, World, puzzleGoals } from './world';
@@ -299,6 +300,9 @@ export class Renderer {
     this.ctx.putImageData(this.img, 0, 0);
   }
 
+  private cellAlc: Float32Array | null = null;
+  private cellN: Float32Array | null = null;
+
   private drawWater(world: World) {
     const f = world.fluid, mask = this.water, out = this.img.data;
     const threshold = 0.22 * f.restDensity;
@@ -313,6 +317,14 @@ export class Renderer {
           + tx * ty * f.density[i1 + j1 * NX] + (1 - tx) * ty * f.density[i0 + j1 * NX];
         if (d > threshold && f.s[Math.floor(x / CELL) + Math.floor(y / CELL) * NX] !== 0) mask[y * W + x] = 1;
       }
+    }
+    // Alcohol per cell (mean over water particles), for tinting spirits.
+    const cellAlc = this.cellAlc ??= new Float32Array(NX * NY), cellN = this.cellN ??= new Float32Array(NX * NY);
+    cellAlc.fill(0); cellN.fill(0);
+    for (let k = 0; k < f.count; k++) {
+      if (f.kind[k] !== WATER_KIND) continue;
+      const c = Math.floor(f.pos[2 * k] / CELL) + Math.floor(f.pos[2 * k + 1] / CELL) * NX;
+      if (c >= 0 && c < NX * NY) { cellAlc[c] += f.alc[k]; cellN[c]++; }
     }
     // Spray: lone droplets the density field is too coarse to show.
     for (let k = 0; k < f.count; k++) {
@@ -344,6 +356,13 @@ export class Renderer {
           const a = Math.min(0.85, 0.15 + silt * 2.2);
           const mud: RGB = depth === 0 ? [176, 146, 104] : depth > 24 ? [96, 70, 44] : [128, 96, 62];
           col = [col[0] + (mud[0] - col[0]) * a, col[1] + (mud[1] - col[1]) * a, col[2] + (mud[2] - col[2]) * a];
+        }
+        // Alcohol turns water toward a pale, clear violet: strong spirits stand out from a mash.
+        const alc = pal === WATER && cellN[c] > 0 ? cellAlc[c] / cellN[c] : 0;
+        if (alc > 0.03) {
+          const a = Math.min(0.7, alc * 0.9);
+          const spirit: RGB = depth === 0 ? [236, 226, 255] : [176, 160, 236];
+          col = [col[0] + (spirit[0] - col[0]) * a, col[1] + (spirit[1] - col[1]) * a, col[2] + (spirit[2] - col[2]) * a];
         }
         const o = (y * W + x) * 4;
         // Water is slightly see-through so walls behind it read.

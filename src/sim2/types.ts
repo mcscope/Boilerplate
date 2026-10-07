@@ -28,6 +28,18 @@ export const GAMMA = 1.4;
 /** Latent heat of vaporization, as °C of temperature change per unit of liquid mass (water ≈ 540). */
 export const LATENT_VAPORIZATION = 540;
 
+// Alcohol (ethanol). It mixes with water: liquid alcohol is a mass fraction carried by water particles.
+/** Ratio of ethanol's molar mass to air's (46.07 / 28.97): alcohol vapor contributes alc / ALC_MOLAR_RATIO to pressure. */
+export const ALC_MOLAR_RATIO = 1.59;
+/** Ethanol's latent heat in the same units as LATENT_VAPORIZATION (841 vs 2257 J/g for water). */
+export const LATENT_ALCOHOL = 201;
+/** Ethanol boils at 78.4 °C at atmospheric pressure. */
+export const ALC_BOIL = 78.4;
+/** Clausius–Clapeyron constant for ethanol, ΔH/R in kelvin (38.6 kJ/mol). */
+export const B_ALC = 4640;
+/** Heat released by burning one unit mass of alcohol vapor, in the same units (29.7 vs 2.257 kJ/g latent of water). */
+export const ALC_COMBUSTION = 7100;
+
 export interface MacGrid {
   readonly nx: number;
   readonly ny: number;
@@ -57,6 +69,9 @@ export interface GasState {
    */
   pendingAir: Float32Array;
   pendingVapor: Float32Array;
+  /** Alcohol vapor mass density, like `vapor`, and alcohol vapor held in liquid cells, like `pendingVapor`. */
+  alcVapor: Float32Array;
+  pendingAlc: Float32Array;
 }
 
 /** Liquid fields the solver needs, computed by the integration layer from particles each substep. */
@@ -94,9 +109,25 @@ export interface ProjectResult {
  */
 export type ProjectFn = (grid: MacGrid, gas: GasState, liquid: LiquidFields, opts: ProjectOptions, pressureOut: Float32Array) => ProjectResult;
 
-/** Equation-of-state pressure of a gas cell. */
-export function gasPressure(air: number, vapor: number, T: number): number {
-  return (P0 / RHO_AIR) * (air + vapor / VAPOR_MOLAR_RATIO) * ((T + 273.15) / (T_AMBIENT + 273.15));
+/** Equation-of-state pressure of a gas cell (alc: alcohol vapor mass density). */
+export function gasPressure(air: number, vapor: number, T: number, alc = 0): number {
+  return (P0 / RHO_AIR) * (air + vapor / VAPOR_MOLAR_RATIO + alc / ALC_MOLAR_RATIO) * ((T + 273.15) / (T_AMBIENT + 273.15));
+}
+
+/** Saturation vapor pressure of pure ethanol at temperature T (°C): equals P0 at its boiling point. */
+export function psatAlc(T: number): number {
+  return P0 * Math.exp(B_ALC * (1 / (ALC_BOIL + 273.15) - 1 / (T + 273.15)));
+}
+
+/** Alcohol vapor mass density in equilibrium over pure ethanol at T. */
+export function saturatedAlc(T: number): number {
+  return psatAlc(T) * ALC_MOLAR_RATIO * RHO_AIR / P0 * ((T_AMBIENT + 273.15) / (T + 273.15));
+}
+
+/** Mole fraction of alcohol in a water–alcohol liquid with alcohol mass fraction `alc`. */
+export function alcMoleFraction(alc: number): number {
+  const a = alc / 46.07, w = (1 - alc) / 18.02;
+  return a + w > 0 ? a / (a + w) : 0;
 }
 
 /** Saturation vapor pressure of water at temperature T (°C): equals P0 at 100 °C. */
@@ -130,8 +161,8 @@ export interface GasTransport {
   advectVelocity(grid: MacGrid, dt: number): void;
   /** Hold the top interior row at ambient air when the level is open to the sky. */
   applyAtmosphere(grid: MacGrid, gas: GasState, openTop: boolean): void;
-  /** Total air and vapor mass (including pending), for conservation checks. */
-  totals(gas: GasState): { air: number; vapor: number };
+  /** Total air, water vapor and alcohol vapor mass (including pending), for conservation checks. */
+  totals(gas: GasState): { air: number; vapor: number; alc: number };
 }
 
 /**
@@ -149,10 +180,12 @@ export interface PhaseContext {
     count: number;
     pos: Float32Array;
     vel: Float32Array;
-    kind: Uint8Array; // 0 water, 1 oil, 2 wax; only water (0) evaporates
+    kind: Uint8Array; // 0 water, 1 oil, 2 wax; only water (0) evaporates, along with any alcohol it carries
     temp: Float32Array;
     silt: Float32Array;
-    add(x: number, y: number, vx: number, vy: number, kind: number, temp: number, silt: number): boolean;
+    /** Alcohol mass fraction of water particles. */
+    alc: Float32Array;
+    add(x: number, y: number, vx: number, vy: number, kind: number, temp: number, silt: number, alc: number): boolean;
     /** Removes particle k by swapping the last particle into its slot. */
     remove(k: number): void;
   };

@@ -1,6 +1,7 @@
 import { Fluid, OIL, WATER, WAX } from './sim/fluid';
 import { CELL_OF_MUD, Sediment } from './sim/sediment';
 import { AMBIENT, HEATER, ICE, MUD, NONE, STEAM_VAPOR, STONE, Thermo, WAX_SOLID, WOOD, WOOD_FUEL } from './sim/thermo';
+import { alcoholBurning } from './sim2/phase';
 import { UnifiedFluid } from './sim2/unified';
 
 /** Screen is W×H pixels; the simulation grid uses CELL×CELL pixel cells. */
@@ -42,6 +43,7 @@ export interface Goal {
   maxSilt?: number; // dirt allowed: suspended silt plus anything settled in the zone, per unit of liquid
   minTemp?: number; // average temperature required, °C
   maxTemp?: number; // average temperature allowed, °C
+  minAlcohol?: number; // average alcohol mass fraction of the liquid required, 0..1
   /** Fill-with-mud goal: `amount` is the number of cells in the zone that must be settled mud (kind is ignored). */
   mud?: boolean;
   /** Burn goal: the level's wood in the zone must burn away; `amount` is how many wood cells the level starts with. */
@@ -74,6 +76,7 @@ export function puzzleGoals(p: Puzzle): Goal[] {
 export interface GoalStatus {
   amount: number;
   extra?: number; // casting goals: solid wax outside the shape
+  alcohol?: number; // average alcohol mass fraction of the goal liquid
   purity: number;
   silt: number;
   temp: number;
@@ -107,15 +110,17 @@ export class Builder {
     for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) this.world.thermo.soak[i + j * NX] = soak;
   }
   moltenWax(i0: number, j0: number, i1: number, j1: number) { this.liquid(i0, j0, i1, j1, WAX, 70); }
+  /** Water carrying dissolved alcohol (mass fraction 0..1): a mash, or spirits. */
+  mash(i0: number, j0: number, i1: number, j1: number, alc: number, temp = AMBIENT) { this.liquid(i0, j0, i1, j1, WATER, temp, alc); }
   private fill(i0: number, j0: number, i1: number, j1: number, mat: number) {
     for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) this.world.setCell(i, j, mat);
   }
   water(i0: number, j0: number, i1: number, j1: number, temp = AMBIENT) { this.liquid(i0, j0, i1, j1, WATER, temp); }
   oil(i0: number, j0: number, i1: number, j1: number, temp = AMBIENT) { this.liquid(i0, j0, i1, j1, OIL, temp); }
-  private liquid(i0: number, j0: number, i1: number, j1: number, kind: number, temp = AMBIENT) {
+  private liquid(i0: number, j0: number, i1: number, j1: number, kind: number, temp = AMBIENT, alc = 0) {
     const f = this.world.fluid, sp = 2 * f.radius;
     for (let y = j0 * CELL + f.radius; y < (j1 + 1) * CELL; y += sp)
-      for (let x = i0 * CELL + f.radius; x < (i1 + 1) * CELL; x += sp) f.addParticle(x, y, 0, 0, kind, temp);
+      for (let x = i0 * CELL + f.radius; x < (i1 + 1) * CELL; x += sp) f.addParticle(x, y, 0, 0, kind, temp, 0, alc);
     for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) this.world.thermo.T[i + j * NX] = temp;
   }
   /** Set the temperature of solid cells (e.g. a hot plate). */
@@ -260,6 +265,10 @@ export class World {
     }
     const changes = this.thermo.solidChanges;
     f.step(dt);
+    // Burning alcohol vapor shows as flames.
+    const burning = alcoholBurning();
+    for (let c = 0; c < burning.length; c++) if (burning[c] > 0 && Math.random() < 30 * dt)
+      this.thermo.addFlame(((c % NX) + Math.random()) * CELL, (Math.floor(c / NX) + Math.random()) * CELL);
     this.thermo.step(dt);
     this.sediment.step(dt);
     if (this.thermo.solidChanges !== changes) this.solidVersion++;
@@ -316,7 +325,7 @@ export class World {
       g.met = mud >= goal.amount;
       return;
     }
-    let mine = 0, all = 0, silt = 0, temp = 0;
+    let mine = 0, all = 0, silt = 0, temp = 0, alc = 0;
     for (let k = 0; k < f.count; k++) {
       const i = f.pos[2 * k] / CELL, j = f.pos[2 * k + 1] / CELL;
       if (i < z.i0 || i >= z.i1 + 1 || j < z.j0 || j >= z.j1 + 1) continue;
@@ -325,6 +334,7 @@ export class World {
       mine++;
       silt += f.silt[k];
       temp += f.temp[k];
+      alc += f.alc[k];
     }
     // Dirt that has settled inside the zone counts too: a beaker that settles muddy water itself isn't clean.
     if (goal.maxSilt !== undefined) {
@@ -337,10 +347,12 @@ export class World {
     g.purity = all ? mine / all : 0;
     g.silt = mine ? silt / mine : 0;
     g.temp = mine ? temp / mine : 0;
+    g.alcohol = mine ? alc / mine : 0;
     g.met = mine >= goal.amount && (goal.minPurity === undefined || g.purity >= goal.minPurity)
       && (goal.maxSilt === undefined || g.silt <= goal.maxSilt)
       && (goal.minTemp === undefined || g.temp >= goal.minTemp)
-      && (goal.maxTemp === undefined || g.temp <= goal.maxTemp);
+      && (goal.maxTemp === undefined || g.temp <= goal.maxTemp)
+      && (goal.minAlcohol === undefined || (g.alcohol ?? 0) >= goal.minAlcohol);
   }
 
   /** Number of particles inside a cell rect: handy for goals and tests. */

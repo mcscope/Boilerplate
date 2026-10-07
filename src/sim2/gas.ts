@@ -224,6 +224,21 @@ function advect(grid: MacGrid, gas: GasState, dt: number) {
         if (withVapor) vapor[c] = rf[c] > 0 ? rf[c] : 0;
       }
     }
+    // Alcohol vapor: the same flux-form scheme with the same Courant numbers, as one more scalar.
+    const alc = gas.alcVapor;
+    let anyAlc = false;
+    for (let c = 0; c < alc.length && !anyAlc; c++) if (alc[c] !== 0) anyAlc = true;
+    if (anyAlc) {
+      for (let j = 1; j < ny - 1; j++) for (let i = 1; i < nx - 1; i++) { const c = i + j * nx; w.qa[c] = alc[c]; }
+      for (let st = 0; st < steps; st++) {
+        massSubstep(nx, ny, w, k, hoLimit, false);
+        const t = w.qa; w.qa = w.qb; w.qb = t;
+      }
+      for (let j = 1; j < ny - 1; j++) for (let i = 1; i < nx - 1; i++) {
+        const c = i + j * nx;
+        if (isGas[c]) alc[c] = w.qa[c] > 0 ? w.qa[c] : 0;
+      }
+    }
   }
   advectTemperature(grid, gas.T, w, dt, maxIn);
 }
@@ -368,21 +383,21 @@ function remap(grid: MacGrid, gas: GasState, prevType: Int32Array) {
   const { nx, ny, cellType } = grid;
   const n = nx * ny;
   const w = getWork(n);
-  const { air, vapor, pendingAir, pendingVapor } = gas;
+  const { air, vapor, pendingAir, pendingVapor, alcVapor, pendingAlc } = gas;
 
   // 1. Cells holding gas that are no longer gas: push their mass to the nearest cells that stayed gas, split
   //    evenly among all of them at that distance; with none in reach, hold it as pending at the cell.
   for (let c = 0; c < n; c++) {
     if (cellType[c] === GAS) continue;
-    const a = air[c], b = vapor[c];
-    if (a === 0 && b === 0) continue;
-    air[c] = 0; vapor[c] = 0;
+    const a = air[c], b = vapor[c], e = alcVapor[c];
+    if (a === 0 && b === 0 && e === 0) continue;
+    air[c] = 0; vapor[c] = 0; alcVapor[c] = 0;
     const k = findTargets(grid, prevType, w, c);
-    if (k === 0) { pendingAir[c] += a; pendingVapor[c] += b; continue; }
-    const fa = a / k, fb = b / k;
+    if (k === 0) { pendingAir[c] += a; pendingVapor[c] += b; pendingAlc[c] += e; continue; }
+    const fa = a / k, fb = b / k, fe = e / k;
     for (let t = 0; t < k; t++) {
       const d = w.targets[t];
-      air[d] += fa; vapor[d] += fb;
+      air[d] += fa; vapor[d] += fb; alcVapor[d] += fe;
     }
   }
 
@@ -390,15 +405,15 @@ function remap(grid: MacGrid, gas: GasState, prevType: Int32Array) {
   //    air rather than as a vacuum. This creates mass (like the atmosphere boundary), on purpose: a wall vanishing
   //    shouldn't suck in its surroundings. LIQUID -> GAS cells, in contrast, start empty.
   for (let c = 0; c < n; c++) {
-    if (cellType[c] === GAS && prevType[c] === SOLID && air[c] === 0 && vapor[c] === 0) air[c] = RHO_AIR;
+    if (cellType[c] === GAS && prevType[c] === SOLID && air[c] === 0 && vapor[c] === 0 && alcVapor[c] === 0) air[c] = RHO_AIR;
   }
 
   // 3. Release pending mass. Pending in a gas cell joins it directly. Pending in a non-gas cell goes to the nearest
   //    gas cell within PENDING_RADIUS (Chebyshev), preferring cells that just became gas (LIQUID -> GAS starts as a
   //    near-vacuum; this is how a moving or collapsed bubble's mass re-emerges). Otherwise it stays pending.
   for (let c = 0; c < n; c++) {
-    const a = pendingAir[c], b = pendingVapor[c];
-    if (a === 0 && b === 0) continue;
+    const a = pendingAir[c], b = pendingVapor[c], e = pendingAlc[c];
+    if (a === 0 && b === 0 && e === 0) continue;
     let dst = -1;
     if (cellType[c] === GAS) dst = c;
     else {
@@ -418,8 +433,8 @@ function remap(grid: MacGrid, gas: GasState, prevType: Int32Array) {
       }
     }
     if (dst < 0) continue;
-    air[dst] += a; vapor[dst] += b;
-    pendingAir[c] = 0; pendingVapor[c] = 0;
+    air[dst] += a; vapor[dst] += b; alcVapor[dst] += e;
+    pendingAir[c] = 0; pendingVapor[c] = 0; pendingAlc[c] = 0;
   }
 
   // 4. A cell that just turned from liquid to gas next to existing gas fills from it at once: sound crosses a cell
@@ -430,13 +445,13 @@ function remap(grid: MacGrid, gas: GasState, prevType: Int32Array) {
   for (let pass = 0; pass < 3; pass++) {
     for (let c = 0; c < n; c++) {
       if (cellType[c] !== GAS || prevType[c] !== LIQUID) continue;
-      let k = 1, ta = air[c], tv = vapor[c];
+      let k = 1, ta = air[c], tv = vapor[c], te = alcVapor[c];
       const nb = [c - 1, c + 1, c - nx, c + nx];
-      for (const d of nb) if (cellType[d] === GAS && air[d] + vapor[d] > 0) { k++; ta += air[d]; tv += vapor[d]; }
+      for (const d of nb) if (cellType[d] === GAS && air[d] + vapor[d] + alcVapor[d] > 0) { k++; ta += air[d]; tv += vapor[d]; te += alcVapor[d]; }
       if (k === 1) continue;
-      const ea = ta / k, ev = tv / k;
-      air[c] = ea; vapor[c] = ev;
-      for (const d of nb) if (cellType[d] === GAS && air[d] + vapor[d] > 0) { air[d] = ea; vapor[d] = ev; }
+      const ea = ta / k, ev = tv / k, ee = te / k;
+      air[c] = ea; vapor[c] = ev; alcVapor[c] = ee;
+      for (const d of nb) if (cellType[d] === GAS && air[d] + vapor[d] + alcVapor[d] > 0) { air[d] = ea; vapor[d] = ev; alcVapor[d] = ee; }
     }
   }
 }
@@ -453,18 +468,19 @@ function applyAtmosphere(grid: MacGrid, gas: GasState, openTop: boolean) {
   for (let i = 1; i < nx - 1; i++) {
     const c = i + nx;
     if (s[c] === 0 || cellType[c] !== GAS) continue;
-    gas.air[c] = RHO_AIR; gas.vapor[c] = 0; gas.T[c] = T_AMBIENT;
+    gas.air[c] = RHO_AIR; gas.vapor[c] = 0; gas.alcVapor[c] = 0; gas.T[c] = T_AMBIENT;
   }
 }
 
 function totals(gas: GasState) {
-  let air = 0, vapor = 0;
+  let air = 0, vapor = 0, alc = 0;
   const n = gas.air.length;
   for (let c = 0; c < n; c++) {
     air += gas.air[c] + gas.pendingAir[c];
     vapor += gas.vapor[c] + gas.pendingVapor[c];
+    alc += gas.alcVapor[c] + gas.pendingAlc[c];
   }
-  return { air, vapor };
+  return { air, vapor, alc };
 }
 
 export const gasTransport: GasTransport = { remap, advect, advectVelocity, applyAtmosphere, totals };

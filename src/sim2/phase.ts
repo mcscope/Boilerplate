@@ -47,7 +47,8 @@
  *    apply queued heat (to particle temps where the cell has particles, else to the cell T).
  */
 import {
-  GAS, LIQUID, LATENT_VAPORIZATION, P0, PhaseContext, saturatedVapor,
+  ALC_COMBUSTION, ALC_MOLAR_RATIO, B_ALC, GAS, LIQUID, LATENT_ALCOHOL, LATENT_VAPORIZATION, P0, PhaseContext,
+  VAPOR_MOLAR_RATIO, alcMoleFraction, psat, psatAlc, saturatedAlc, saturatedVapor,
 } from './types';
 
 /** Evaporation / condensation rate at a liquid–gas face, 1/s (fraction of the gap to saturation per second). */
@@ -70,6 +71,24 @@ const P_MIN = 0.1, P_MAX = 50;
 const WATER = 0;
 const B_CLAUSIUS = 4895; // same constant as psat in types.ts
 
+/** Enthalpy of alcohol vapor per unit mass, on the same footing as H_VAPOR. */
+export const H_ALC = LATENT_ALCOHOL + 100;
+/** Rate (1/s) at which alcohol spreads evenly through the water in a cell: water and alcohol mix. */
+const K_MIX = 8;
+/** Alcohol vapor burns above this temperature (°C): a flame, the torch or a fire nearby gets it there. */
+export const ALC_IGNITE = 365;
+/**
+ * Below this mole fraction (3.3%) alcohol vapor is too lean to burn. There's no rich limit: vapor too rich to burn
+ * premixed still burns where it meets air (a diffusion flame), at the rate the air in the cell allows.
+ */
+const ALC_LEAN = 0.033;
+/** Burning rate of a flammable cell, 1/s (fast: a flame front). */
+const K_BURN = 40;
+/** Air needed to burn a unit mass of alcohol (stoichiometric, by mass). */
+const AIR_PER_ALC = 9;
+/** Hottest a burning gas cell gets (°C). */
+const T_FLAME_MAX = 1800;
+
 /** Saturation temperature (°C) at absolute pressure p: inverse of psat. */
 export function tsat(p: number): number {
   return 1 / (1 / 373.15 - Math.log(p / P0) / B_CLAUSIUS) - 273.15;
@@ -86,11 +105,52 @@ function satV(T: number): number {
   return tab[i] + (tab[i + 1] - tab[i]) * t;
 }
 
+// Alcohol saturation, same table layout.
+let satATable: Float64Array | null = null;
+function satA(T: number): number {
+  let x = (T - SAT_LO) / SAT_STEP;
+  if (x <= 0) x = 0; else if (x >= SAT_N - 1.000001) x = SAT_N - 1.000001;
+  const i = x | 0, t = x - i, tab = satATable!;
+  return tab[i] + (tab[i + 1] - tab[i]) * t;
+}
+
+// Bubble point of a water–alcohol liquid: the temperature where (1 - x)·psat(T) + x·psatAlc(T) = p.
+// Tabulated over alcohol mole fraction x (0..1) and log pressure (P_MIN..P_MAX ×P0), bilinear lookup.
+const BX = 64, BP = 64;
+let bubbleTable: Float64Array | null = null;
+function bubbleT(p: number, x: number): number {
+  if (!bubbleTable) {
+    bubbleTable = new Float64Array((BX + 1) * (BP + 1));
+    for (let a = 0; a <= BX; a++) for (let b = 0; b <= BP; b++) {
+      const xx = a / BX, pp = P0 * Math.exp(Math.log(P_MIN) + (Math.log(P_MAX) - Math.log(P_MIN)) * b / BP);
+      let lo = -60, hi = 450;
+      for (let it = 0; it < 48; it++) {
+        const m = 0.5 * (lo + hi);
+        if ((1 - xx) * psat(m) + xx * psatAlc(m) > pp) hi = m; else lo = m;
+      }
+      bubbleTable[a * (BP + 1) + b] = 0.5 * (lo + hi);
+    }
+  }
+  let fx = x * BX; fx = fx < 0 ? 0 : fx > BX - 1e-9 ? BX - 1e-9 : fx;
+  let fp = (Math.log(p / P0) - Math.log(P_MIN)) / (Math.log(P_MAX) - Math.log(P_MIN)) * BP;
+  fp = fp < 0 ? 0 : fp > BP - 1e-9 ? BP - 1e-9 : fp;
+  const a = fx | 0, b = fp | 0, tx = fx - a, tp = fp - b, t = bubbleTable, W = BP + 1;
+  return (t[a * W + b] * (1 - tp) + t[a * W + b + 1] * tp) * (1 - tx) + (t[(a + 1) * W + b] * (1 - tp) + t[(a + 1) * W + b + 1] * tp) * tx;
+}
+
+/** Mass fraction of alcohol in the vapor over a liquid with alcohol mole fraction x at temperature T, pressure p. */
+function vaporAlcFraction(x: number, T: number, p: number): number {
+  const ye = Math.min(1, (x * psatAlc(T)) / p); // mole fraction (Raoult)
+  return (ye * 46.07) / (ye * 46.07 + (1 - ye) * 18.02);
+}
+
 // ---- module state (allocated on first use, reused) ----
 let nCells = 0, maxP = 0;
 let vaporRef: Float32Array | null = null;
 const st = {
   accM: new Float64Array(0), accH: new Float64Array(0), dQ: new Float64Array(0),
+  /** Alcohol mass owed by the liquid (> 0) or condensed into it but not yet placed (< 0), per cell. Part of accM. */
+  accA: new Float64Array(0), meanAlc: new Float64Array(0), burnRate: new Float32Array(0),
   nAll: new Int32Array(0), nLive: new Int32Array(0), nWater: new Int32Array(0),
   sumTW: new Float64Array(0), satL: new Float64Array(0),
   start: new Int32Array(0), fill: new Int32Array(0),
@@ -101,10 +161,13 @@ function ensure(n: number, mp: number, vapor: Float32Array) {
   if (!satTable) {
     satTable = new Float64Array(SAT_N);
     for (let i = 0; i < SAT_N; i++) satTable[i] = saturatedVapor(SAT_LO + i * SAT_STEP);
+    satATable = new Float64Array(SAT_N);
+    for (let i = 0; i < SAT_N; i++) satATable[i] = saturatedAlc(SAT_LO + i * SAT_STEP);
   }
   if (n !== nCells) {
     nCells = n;
     st.accM = new Float64Array(n); st.accH = new Float64Array(n); st.dQ = new Float64Array(n);
+    st.accA = new Float64Array(n); st.meanAlc = new Float64Array(n); st.burnRate = new Float32Array(n);
     st.nAll = new Int32Array(n); st.nLive = new Int32Array(n); st.nWater = new Int32Array(n);
     st.sumTW = new Float64Array(n); st.satL = new Float64Array(n);
     st.start = new Int32Array(n + 1); st.fill = new Int32Array(n);
@@ -113,18 +176,21 @@ function ensure(n: number, mp: number, vapor: Float32Array) {
     maxP = mp;
     st.list = new Int32Array(mp); st.cellOf = new Int32Array(mp); st.dead = new Uint8Array(mp); st.removeList = new Int32Array(mp);
   }
-  if (vapor !== vaporRef) { vaporRef = vapor; st.accM.fill(0); st.accH.fill(0); }
+  if (vapor !== vaporRef) { vaporRef = vapor; st.accM.fill(0); st.accH.fill(0); st.accA.fill(0); }
 }
 
 /** Clear the accumulators (call on level load). */
-export function resetPhase(): void { st.accM.fill(0); st.accH.fill(0); }
+export function resetPhase(): void { st.accM.fill(0); st.accH.fill(0); st.accA.fill(0); st.burnRate.fill(0); }
+
+/** Alcohol vapor burning in each cell this step (mass per second), for flames and rendering. */
+export function alcoholBurning(): Float32Array { return st.burnRate; }
 
 /** Totals of the whole-particle accumulators, for conservation checks (see the header for how they enter M and E). */
-export function phaseLedger(): { mass: number; heat: number } {
-  let m = 0, e = 0;
-  const { accM, accH } = st;
-  for (let c = 0; c < nCells; c++) { m += accM[c]; e += accH[c]; }
-  return { mass: m, heat: e };
+export function phaseLedger(): { mass: number; heat: number; alc: number } {
+  let m = 0, e = 0, a = 0;
+  const { accM, accH, accA } = st;
+  for (let c = 0; c < nCells; c++) { m += accM[c]; e += accH[c]; a += accA[c]; }
+  return { mass: m, heat: e, alc: a };
 }
 
 /** Per-cell mass balance (> 0 owed by the liquid, < 0 condensed but not yet a particle), for debugging / rendering. */
@@ -152,14 +218,14 @@ export function phaseChange(ctx: PhaseContext): void {
   const { grid, gas, dt, residue } = ctx;
   const P = ctx.particles;
   const { nx, ny, h, s, cellType } = grid;
-  const { vapor, pendingVapor, T } = gas;
+  const { vapor, pendingVapor, T, alcVapor, pendingAlc } = gas;
   const pressure = ctx.pressure;
   const n = nx * ny;
   const rest = ctx.restDensity;
   const MP = 1 / rest;
   ensure(n, P.temp.length, vapor);
-  const { accM, accH, dQ, nAll, nLive, nWater, sumTW, satL, start, fill, list, cellOf, dead, removeList } = st;
-  const pos = P.pos, kind = P.kind, temp = P.temp, silt = P.silt;
+  const { accM, accH, dQ, nAll, nLive, nWater, sumTW, satL, start, fill, list, cellOf, dead, removeList, accA, meanAlc, burnRate } = st;
+  const pos = P.pos, kind = P.kind, temp = P.temp, silt = P.silt, alc = P.alc;
   const count = P.count;
   const inv = 1 / h;
 
@@ -179,28 +245,47 @@ export function phaseChange(ctx: PhaseContext): void {
   for (let c = 0; c < n; c++) { start[c + 1] = start[c] + nAll[c]; fill[c] = start[c]; nLive[c] = nAll[c]; }
   for (let k = 0; k < count; k++) list[fill[cellOf[k]]++] = k;
 
+  // ---- 0. water and alcohol mix: within a cell, the water particles' alcohol fractions even out ----
+  const aMix = Math.min(1, K_MIX * dt);
+  for (let c = 0; c < n; c++) {
+    meanAlc[c] = 0;
+    if (nAll[c] === 0) continue;
+    let sa = 0, w = 0;
+    for (let q = start[c]; q < start[c + 1]; q++) { const k = list[q]; if (kind[k] === WATER) { sa += alc[k]; w++; } }
+    if (w === 0) continue;
+    const m = sa / w;
+    meanAlc[c] = m;
+    if (m > 0 && w > 1) for (let q = start[c]; q < start[c + 1]; q++) { const k = list[q]; if (kind[k] === WATER) alc[k] += (m - alc[k]) * aMix; }
+  }
+
   // ---- 1. boiling (limited by superheat) ----
   for (let c = 0; c < n; c++) {
     if (nAll[c] === 0 || s[c] === 0) continue;
     let p = pressure[c] > 0 ? pressure[c] : P0;
     p = p < P_MIN * P0 ? P_MIN * P0 : p > P_MAX * P0 ? P_MAX * P0 : p;
-    const Ts = tsat(p);
+    // A water–alcohol mix boils at its bubble point, giving off vapor of the equilibrium composition.
+    const xe = meanAlc[c] > 1e-5 ? alcMoleFraction(meanAlc[c]) : 0;
+    const Ts = xe > 0 ? bubbleT(p, xe) : tsat(p);
+    const wa = xe > 0 ? vaporAlcFraction(xe, Ts, p) : 0; // alcohol share of the vapor, by mass
+    const Hv = wa * H_ALC + (1 - wa) * H_VAPOR;
     let dmTotal = 0;
     for (let q = start[c]; q < start[c + 1]; q++) {
       const k = list[q];
       if (kind[k] !== WATER || temp[k] <= Ts) continue;
-      dmTotal += (MP * (temp[k] - Ts)) / (H_VAPOR - Ts);
+      dmTotal += (MP * (temp[k] - Ts)) / (Hv - Ts);
       temp[k] = Ts;
     }
     if (dmTotal === 0) continue;
+    const dmA = dmTotal * wa, dmW = dmTotal - dmA;
     accAdd(accM, accH, dQ, c, dmTotal, Ts);
-    if (cellType[c] === GAS) { vapor[c] += dmTotal; continue; }
+    accA[c] += dmA;
+    if (cellType[c] === GAS) { vapor[c] += dmW; alcVapor[c] += dmA; continue; }
     const g = cellType[c - nx] === GAS && s[c - nx] !== 0 ? c - nx
       : cellType[c - 1] === GAS && s[c - 1] !== 0 ? c - 1
       : cellType[c + 1] === GAS && s[c + 1] !== 0 ? c + 1
       : cellType[c + nx] === GAS && s[c + nx] !== 0 ? c + nx : -1;
-    if (g >= 0) vapor[g] += dmTotal;
-    else pendingVapor[c] += dmTotal;
+    if (g >= 0) { vapor[g] += dmW; alcVapor[g] += dmA; }
+    else { pendingVapor[c] += dmW; pendingAlc[c] += dmA; }
   }
 
   // ---- per-cell water temperature and its saturation vapor density ----
@@ -210,7 +295,7 @@ export function phaseChange(ctx: PhaseContext): void {
     let sum = 0, w = 0;
     for (let q = start[c]; q < start[c + 1]; q++) { const k = list[q]; if (kind[k] === WATER) { sum += temp[k]; w++; } }
     nWater[c] = w;
-    if (w > 0) { sumTW[c] = sum / w; satL[c] = satV(sum / w); }
+    if (w > 0) { sumTW[c] = sum / w; satL[c] = satV(sum / w) * (1 - (meanAlc[c] > 0 ? alcMoleFraction(meanAlc[c]) : 0)); }
   }
 
   // ---- 2–4. exchange in gas cells ----
@@ -219,26 +304,40 @@ export function phaseChange(ctx: PhaseContext): void {
   for (let j = 1; j < ny - 1; j++) for (let i = 1; i < nx - 1; i++) {
     const c = i + j * nx;
     if (s[c] === 0 || cellType[c] !== GAS) continue;
-    let vap = vapor[c];
+    let vap = vapor[c], av = alcVapor[c];
     for (let f = 0; f < 5; f++) {
       const o = f === 0 ? c : f === 1 ? c - nx : f === 2 ? c - 1 : f === 3 ? c + 1 : c + nx;
       if (s[o] === 0) {
-        // cold surface: condense only
+        // cold surface: condense only (each species toward its own saturation over its pure liquid)
         const sv = satV(T[o]);
-        if (vap <= sv) continue;
-        const dm = aWall * (vap - sv);
-        vap -= dm;
-        dQ[o] += (H_VAPOR - T[o]) * dm;
-        accAdd(accM, accH, dQ, c, -dm, T[o]);
+        if (vap > sv) {
+          const dm = aWall * (vap - sv);
+          vap -= dm;
+          dQ[o] += (H_VAPOR - T[o]) * dm;
+          accAdd(accM, accH, dQ, c, -dm, T[o]);
+        }
+        const sa = av > 0 ? satA(T[o]) : 0;
+        if (av > sa) {
+          const dm = aWall * (av - sa);
+          av -= dm;
+          dQ[o] += (H_ALC - T[o]) * dm;
+          accAdd(accM, accH, dQ, c, -dm, T[o]);
+          accA[c] -= dm;
+        }
         continue;
       }
       if (nWater[o] === 0 || (o !== c && cellType[o] !== LIQUID)) continue;
       const Tl = sumTW[o];
+      // Raoult: each species heads for its own partial saturation over this liquid.
       const dm = aEvap * (satL[o] - vap); // > 0 evaporation, < 0 condensation onto the liquid
-      if (dm === 0) continue;
+      const xe = meanAlc[o] > 0 ? alcMoleFraction(meanAlc[o]) : 0;
+      const dmA = xe > 0 || av > 0 ? aEvap * (satA(Tl) * xe - av) : 0;
+      if (dm === 0 && dmA === 0) continue;
       vap += dm;
-      dQ[o] -= (H_VAPOR - Tl) * dm;
-      accAdd(accM, accH, dQ, o, dm, Tl);
+      av += dmA;
+      dQ[o] -= (H_VAPOR - Tl) * dm + (H_ALC - Tl) * dmA;
+      accAdd(accM, accH, dQ, o, dm + dmA, Tl);
+      accA[o] += dmA;
     }
     // fog: condensation in the gas itself, limited so the released heat doesn't overshoot saturation
     const Tc = T[c];
@@ -252,7 +351,40 @@ export function phaseChange(ctx: PhaseContext): void {
       dQ[c] += (H_VAPOR - Tc) * dm;
       accAdd(accM, accH, dQ, c, -dm, Tc);
     }
+    if (av > 0) {
+      const sa = satA(Tc);
+      if (av > sa) {
+        const TK = Tc + 273.15;
+        const dsdT = sa * (B_ALC / (TK * TK) - 1 / TK);
+        const dm = aFog * (av - sa) / (1 + Math.max(0, dsdT) * (H_ALC - Tc) / CAP_GAS);
+        av -= dm;
+        dQ[c] += (H_ALC - Tc) * dm;
+        accAdd(accM, accH, dQ, c, -dm, Tc);
+        accA[c] -= dm;
+      }
+    }
     vapor[c] = vap;
+    alcVapor[c] = av;
+  }
+
+  // ---- 4b. alcohol vapor burns: within its flammable range, with enough air, above its ignition temperature.
+  // C2H5OH + 3 O2 -> 2 CO2 + 3 H2O: per unit of alcohol, 1.17 of water vapor appears and the air loses 0.17 net
+  // (oxygen out, CO2 in), so mass is conserved; the heat of combustion goes into the cell. ----
+  burnRate.fill(0);
+  const aBurn = Math.min(1, K_BURN * dt), air = gas.air;
+  for (let c = nx; c < n - nx; c++) {
+    if (s[c] === 0 || cellType[c] !== GAS) continue;
+    const av = alcVapor[c];
+    if (av <= 0 || T[c] < ALC_IGNITE) continue;
+    const ma = av / ALC_MOLAR_RATIO, y = ma / (ma + vapor[c] / VAPOR_MOLAR_RATIO + air[c]);
+    if (y < ALC_LEAN) continue;
+    const dm = Math.min(av * aBurn, air[c] / AIR_PER_ALC);
+    if (dm <= 0) continue;
+    alcVapor[c] = av - dm;
+    vapor[c] += 1.17 * dm;
+    air[c] -= 0.17 * dm;
+    T[c] = Math.min(T_FLAME_MAX, T[c] + (ALC_COMBUSTION * dm) / CAP_GAS);
+    burnRate[c] = dm / dt;
   }
 
   // ---- 5a. coalesce partial balances: a fraction of a particle drifts to the neighbor holding more of the same
@@ -283,8 +415,8 @@ export function phaseChange(ctx: PhaseContext): void {
     // collect and merge on the way.
     if (best < 0 && !debt && s[c + nx] !== 0 && Math.random() < aSettle) best = c + nx;
     if (best < 0) continue;
-    accM[best] += m; accH[best] += accH[c];
-    accM[c] = 0; accH[c] = 0;
+    accM[best] += m; accH[best] += accH[c]; accA[best] += accA[c];
+    accM[c] = 0; accH[c] = 0; accA[c] = 0;
   }
 
   // ---- 5b. settle debts: remove whole water particles ----
@@ -309,6 +441,7 @@ export function phaseChange(ctx: PhaseContext): void {
       removeList[nRemove++] = best;
       nLive[bestCell]--;
       residue[bestCell] += silt[best];
+      accA[c] -= MP * alc[best];
       dQ[bestCell] += MP * (temp[best] - Ta); // its heat beyond what was booked stays with the liquid
       accM[c] -= MP;
       accH[c] -= MP * Ta;
@@ -324,6 +457,28 @@ export function phaseChange(ctx: PhaseContext): void {
       for (let r = start[c]; r < start[c + 1]; r++) { const k = list[r]; if (!dead[k]) temp[k] += dT; }
       if (cellType[c] === LIQUID) T[c] += dT;
     } else T[c] += q / (s[c] === 0 ? CAP_SOLID : CAP_GAS);
+  }
+
+  // ---- 5e. whatever alcohol balance is left shifts the composition of the cell's water: alcohol owed is swapped
+  // for water (total liquid mass unchanged, so accM, which counts both, stays right), alcohol credited the other
+  // way. ----
+  for (let c = 0; c < n; c++) {
+    const a = accA[c];
+    if (a === 0) continue;
+    if (Math.abs(a) < 1e-12) { accA[c] = 0; continue; }
+    let room = 0;
+    for (let q = start[c]; q < start[c + 1]; q++) {
+      const k = list[q];
+      if (!dead[k] && kind[k] === WATER) room += a > 0 ? MP * alc[k] : MP * (1 - alc[k]);
+    }
+    if (room <= 0) continue;
+    const take = Math.min(Math.abs(a), room), f = take / room;
+    for (let q = start[c]; q < start[c + 1]; q++) {
+      const k = list[q];
+      if (dead[k] || kind[k] !== WATER) continue;
+      alc[k] = a > 0 ? alc[k] * (1 - f) : alc[k] + (1 - alc[k]) * f;
+    }
+    accA[c] -= a > 0 ? take : -take;
   }
 
   // ---- 5c. remove particles (descending index keeps swap-with-last safe) ----
@@ -344,9 +499,12 @@ export function phaseChange(ctx: PhaseContext): void {
       const Ts = accH[c] / accM[c];
       const i = c % nx, j = (c - i) / nx;
       const x = (i + 0.2 + 0.6 * Math.random()) * h, y = (j + 0.2 + 0.6 * Math.random()) * h;
-      if (!P.add(x, y, 0, DROP_SPEED, WATER, Ts, 0)) break;
+      const a = accA[c] < 0 ? Math.min(1, accA[c] / accM[c]) : 0; // alcohol share of the condensate
+      if (!P.add(x, y, 0, DROP_SPEED, WATER, Ts, 0, a)) break;
       accM[c] += MP;
       accH[c] += MP * Ts;
+      accA[c] += MP * a;
     }
   }
+
 }

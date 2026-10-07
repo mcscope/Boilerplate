@@ -26,9 +26,11 @@ export const LIQUID_DENSITY = [1, 0.7, 0.9];
 const THERMAL_EXPANSION = [0.0015, 0.0015, 0.0056];
 /** Suspended silt makes water heavier, so muddy water sinks under clear water. */
 const SILT_DENSITY = 0.25;
-function particleDensity(kind: number, temp: number, silt: number) {
+/** Dissolved alcohol makes water lighter: pure ethanol is 0.79. */
+const ALCOHOL_DENSITY = 0.21;
+function particleDensity(kind: number, temp: number, silt: number, alc: number) {
   const t = temp < 0 ? 0 : temp > 100 ? 100 : temp;
-  return LIQUID_DENSITY[kind] * (1 - THERMAL_EXPANSION[kind] * (t - 20)) * (1 + SILT_DENSITY * silt);
+  return LIQUID_DENSITY[kind] * (1 - THERMAL_EXPANSION[kind] * (t - 20)) * (1 + SILT_DENSITY * silt) * (1 - ALCOHOL_DENSITY * alc);
 }
 
 /** Surface tension: how strongly nearby particles of the same liquid pull together, and out to what distance (in radii). */
@@ -105,6 +107,8 @@ export abstract class Fluid {
   burn: Float32Array;
   /** Suspended silt per particle (water only), 0..1. */
   silt: Float32Array;
+  /** Alcohol mass fraction per particle (water only), 0..1: water and alcohol mix, so a mash is water carrying it. */
+  alc: Float32Array;
   protected prePos: Float32Array;
 
   // Spatial hash for particle separation
@@ -152,6 +156,7 @@ export abstract class Fluid {
     this.temp = new Float32Array(maxParticles);
     this.burn = new Float32Array(maxParticles);
     this.silt = new Float32Array(maxParticles);
+    this.alc = new Float32Array(maxParticles);
     this.prePos = new Float32Array(2 * maxParticles);
 
     this.pInv = 1 / (2.2 * this.radius);
@@ -185,7 +190,7 @@ export abstract class Fluid {
     return this.s[i + j * this.nx] === 0;
   }
 
-  addParticle(x: number, y: number, vx = 0, vy = 0, kind = WATER, temp = 20, silt = 0) {
+  addParticle(x: number, y: number, vx = 0, vy = 0, kind = WATER, temp = 20, silt = 0, alc = 0) {
     if (this.count >= this.maxParticles || this.solidAt(x, y)) return false;
     const k = this.count++;
     this.pos[2 * k] = x;
@@ -196,6 +201,7 @@ export abstract class Fluid {
     this.temp[k] = temp;
     this.burn[k] = 0;
     this.silt[k] = silt;
+    this.alc[k] = alc;
     return true;
   }
 
@@ -209,6 +215,7 @@ export abstract class Fluid {
     this.temp[k] = this.temp[last];
     this.burn[k] = this.burn[last];
     this.silt[k] = this.silt[last];
+    this.alc[k] = this.alc[last];
   }
 
   /** Remove every particle for which `pred` is true. */
@@ -454,7 +461,7 @@ export abstract class Fluid {
     const md = this.massDensity;
     md.fill(0);
     for (let k = 0; k < this.count; k++) {
-      const m = particleDensity(this.kind[k], this.temp[k], this.silt[k]);
+      const m = particleDensity(this.kind[k], this.temp[k], this.silt[k], this.alc[k]);
       const od = this.kind[k] === OIL ? this.oilDensity : this.kind[k] === WAX ? this.waxDensity : null;
       const x = clampf(this.pos[2 * k], h, (nx - 1) * h), y = clampf(this.pos[2 * k + 1], h, (ny - 1) * h);
       const x0 = Math.floor((x - h2) * inv), tx = (x - h2 - x0 * h) * inv, x1 = Math.min(x0 + 1, nx - 2);

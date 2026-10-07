@@ -132,7 +132,7 @@ export function project(grid: MacGrid, gas: GasState, liquid: LiquidFields, opts
       const rl = liquid.rho[c];
       rho[c] = rl > RHO_LIQ_MIN ? rl : RHO_LIQ_MIN;
     } else {
-      const rg = gas.air[c] + gas.vapor[c];
+      const rg = gas.air[c] + gas.vapor[c] + gas.alcVapor[c];
       rho[c] = rg > RHO_GAS_MIN ? rg : RHO_GAS_MIN;
     }
     if (opts.openTop && j === 1) {
@@ -141,7 +141,7 @@ export function project(grid: MacGrid, gas: GasState, liquid: LiquidFields, opts
     } else {
       status[c] = ST_UNKNOWN;
       const pp = prevP[c];
-      x[c] = pp === pp && pp > 0 ? pp : t === LIQUID ? P0 : gasPressure(gas.air[c], gas.vapor[c], gas.T[c]);
+      x[c] = pp === pp && pp > 0 ? pp : t === LIQUID ? P0 : gasPressure(gas.air[c], gas.vapor[c], gas.T[c], gas.alcVapor[c]);
       cells[numCells++] = c;
     }
   }
@@ -205,15 +205,15 @@ export function project(grid: MacGrid, gas: GasState, liquid: LiquidFields, opts
       // Boiling source: vapor waiting in this liquid cell (gas.pendingVapor) needs room. Its volume, as a fraction
       // of the cell, is gasPressure(0, pv, T) / p_local; making room for it within this step means a net outflow of
       // frac · h / dt (px/s summed over faces). Capped at VAPOR_MAX_CELLS cells of volume per step.
-      const pv = gas.pendingVapor[c];
-      if (pv > 0) {
+      const pv = gas.pendingVapor[c], pa = gas.pendingAlc[c];
+      if (pv > 0 || pa > 0) {
         const pl = x[c] > P_MIN ? x[c] : P_MIN;
-        let frac = gasPressure(0, pv, gas.T[c]) / pl;
+        let frac = gasPressure(0, pv, gas.T[c], pa) / pl;
         if (frac > VAPOR_MAX_CELLS) frac = VAPOR_MAX_CELLS;
         div -= frac * h / dt;
       }
     } else {
-      const ps = gasPressure(gas.air[c], gas.vapor[c], gas.T[c]);
+      const ps = gasPressure(gas.air[c], gas.vapor[c], gas.T[c], gas.alcVapor[c]);
       const ah = h / (dt * GAMMA * (ps > P_MIN ? ps : P_MIN));
       dg += ah;
       rhs += ah * ps;
