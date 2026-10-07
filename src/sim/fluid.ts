@@ -31,6 +31,12 @@ function particleDensity(kind: number, temp: number, silt: number) {
   return LIQUID_DENSITY[kind] * (1 - THERMAL_EXPANSION[kind] * (t - 20)) * (1 + SILT_DENSITY * silt);
 }
 
+/**
+ * Share of a cell-center's bilinear particle density that comes from one side neighbor / one diagonal neighbor
+ * when the liquid is uniform: (∫_{1/2}^{1}(1−x)dx)·(∫_{−1/2}^{1/2}(1−|y|)dy) = 1/8 · 3/4, and (1/8)². Own cell 9/16.
+ */
+const GHOST_SIDE = 3 / 32, GHOST_DIAG = 1 / 64;
+
 /** Surface tension: how strongly nearby particles of the same liquid pull together, and out to what distance (in radii). */
 const COHESION = 0.08;
 const COHESION_RANGE = 3.5;
@@ -66,6 +72,14 @@ export abstract class Fluid {
   protected dv: Float32Array;
   protected prevU: Float32Array;
   protected prevV: Float32Array;
+  /**
+   * P2G velocity on faces between an open and a solid cell, before the wall zeroes it (0 on every other face).
+   * The wall's no-penetration condition is part of the projection, so FLIP must see it as a velocity change:
+   * adding these to prevU/prevV before G2P does that. Without it a particle resting on a floor keeps the g·dt
+   * it gains each substep (the wall face shows no change), and carries a phantom downward speed.
+   */
+  protected wallU: Float32Array;
+  protected wallV: Float32Array;
   p: Float32Array;
   /** 0 = solid, 1 = open. */
   s: Float32Array;
@@ -129,6 +143,8 @@ export abstract class Fluid {
     this.dv = new Float32Array(n);
     this.prevU = new Float32Array(n);
     this.prevV = new Float32Array(n);
+    this.wallU = new Float32Array(n);
+    this.wallV = new Float32Array(n);
     this.p = new Float32Array(n);
     this.s = new Float32Array(n).fill(1);
     this.cellType = new Int32Array(n);
@@ -232,12 +248,18 @@ export abstract class Fluid {
   /** Advance the simulation by dt seconds (UnifiedFluid). */
   abstract step(dt: number): void;
 
-  /** Gravity + movement, stepped in sub-cell increments so fast particles can't tunnel through thin walls. */
+  /**
+   * Movement, then gravity. Particles move with the velocity they got back from the last projection (divergence
+   * free), and gravity is added afterwards for the next P2G and projection to balance (the usual FLIP order).
+   * Moving with v + g·dt instead lets every particle sink g·dt² per substep before the pressure can stop it: still
+   * water compresses at the bottom and drift compensation then holds the whole column in a steady upflow of g·dt.
+   * Stepped in sub-cell increments so fast particles can't tunnel through thin walls.
+   */
   protected integrate(dt: number) {
     const g = this.params.gravity, maxStep = 0.5 * this.h;
     for (let k = 0; k < this.count; k++) {
       let x = this.pos[2 * k], y = this.pos[2 * k + 1];
-      let vx = this.vel[2 * k], vy = this.vel[2 * k + 1] + g * dt;
+      let vx = this.vel[2 * k], vy = this.vel[2 * k + 1];
       const steps = Math.max(1, Math.ceil((Math.abs(vx) + Math.abs(vy)) * dt / maxStep));
       const sx = (vx * dt) / steps, sy = (vy * dt) / steps;
       let hitX = false, hitY = false;
@@ -247,6 +269,7 @@ export abstract class Fluid {
       }
       if (hitX) vx = 0;
       if (hitY) vy = 0;
+      vy += g * dt;
       this.pos[2 * k] = x;
       this.pos[2 * k + 1] = y;
       this.vel[2 * k] = vx;
@@ -392,15 +415,22 @@ export abstract class Fluid {
           f[n2] += pv * w2; d[n2] += w2;
           f[n3] += pv * w3; d[n3] += w3;
         } else {
+          // PIC samples every face that touches the liquid or a wall (wall faces hold 0: no-slip drag, as the
+          // grid sees it). FLIP's correction skips faces buried inside a wall (both sides solid): nothing there is
+          // ever projected, so a particle sampling one would never see its gravity cancelled and would creep down
+          // the wall.
           const ct = this.cellType;
-          const v0 = ct[n0] !== AIR || ct[n0 - offset] !== AIR ? 1 : 0;
-          const v1 = ct[n1] !== AIR || ct[n1 - offset] !== AIR ? 1 : 0;
-          const v2 = ct[n2] !== AIR || ct[n2 - offset] !== AIR ? 1 : 0;
-          const v3 = ct[n3] !== AIR || ct[n3 - offset] !== AIR ? 1 : 0;
+          const a0 = ct[n0], b0 = ct[n0 - offset], a1 = ct[n1], b1 = ct[n1 - offset];
+          const a2 = ct[n2], b2 = ct[n2 - offset], a3 = ct[n3], b3 = ct[n3 - offset];
+          const v0 = a0 !== AIR || b0 !== AIR ? 1 : 0, v1 = a1 !== AIR || b1 !== AIR ? 1 : 0;
+          const v2 = a2 !== AIR || b2 !== AIR ? 1 : 0, v3 = a3 !== AIR || b3 !== AIR ? 1 : 0;
+          const q0 = a0 === SOLID && b0 === SOLID ? 0 : v0, q1 = a1 === SOLID && b1 === SOLID ? 0 : v1;
+          const q2 = a2 === SOLID && b2 === SOLID ? 0 : v2, q3 = a3 === SOLID && b3 === SOLID ? 0 : v3;
           const wsum = v0 * w0 + v1 * w1 + v2 * w2 + v3 * w3;
+          const qsum = q0 * w0 + q1 * w1 + q2 * w2 + q3 * w3;
           if (wsum > 0) {
             const pic = (v0 * w0 * f[n0] + v1 * w1 * f[n1] + v2 * w2 * f[n2] + v3 * w3 * f[n3]) / wsum;
-            const corr = (v0 * w0 * (f[n0] - prevF[n0]) + v1 * w1 * (f[n1] - prevF[n1]) + v2 * w2 * (f[n2] - prevF[n2]) + v3 * w3 * (f[n3] - prevF[n3])) / wsum;
+            const corr = qsum > 0 ? (q0 * w0 * (f[n0] - prevF[n0]) + q1 * w1 * (f[n1] - prevF[n1]) + q2 * w2 * (f[n2] - prevF[n2]) + q3 * w3 * (f[n3] - prevF[n3])) / qsum : 0;
             const flip = this.vel[2 * k + comp] + corr;
             const nv = (1 - this.params.flipRatio) * pic + this.params.flipRatio * flip;
             this.vel[2 * k + comp] = nv > MAX_SPEED ? MAX_SPEED : nv < -MAX_SPEED ? -MAX_SPEED : nv;
@@ -410,12 +440,19 @@ export abstract class Fluid {
 
       if (toGrid) {
         for (let c = 0; c < f.length; c++) if (d[c] > 0) f[c] /= d[c];
-        // Faces touching a (static) solid carry no flow.
-        for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
-          const c = i + j * nx;
-          const solid = this.cellType[c] === SOLID;
-          if (solid || (i > 0 && this.cellType[c - 1] === SOLID)) this.u[c] = 0;
-          if (solid || (j > 0 && this.cellType[c - nx] === SOLID)) this.v[c] = 0;
+        // Faces touching a (static) solid carry no flow. On a wall face (open on one side) remember what the
+        // particles brought, so G2P can count the wall's correction (see wallU).
+        if (comp === 1) {
+          const ct = this.cellType;
+          for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+            const c = i + j * nx;
+            const solid = ct[c] === SOLID;
+            const sl = i > 0 && ct[c - 1] === SOLID, st = j > 0 && ct[c - nx] === SOLID;
+            this.wallU[c] = i > 0 && solid !== sl ? this.u[c] : 0;
+            this.wallV[c] = j > 0 && solid !== st ? this.v[c] : 0;
+            if (solid || sl) this.u[c] = 0;
+            if (solid || st) this.v[c] = 0;
+          }
         }
       }
     }
@@ -480,6 +517,16 @@ export abstract class Fluid {
       this.cellOil[c] = oil;
       this.cellWax[c] = wax;
       this.cellRho[c] = d[c] > 0 ? md[c] / d[c] : 1;
+    }
+    // A liquid cell against a wall gets no kernel weight from the wall side, so it reads low even when packed:
+    // count each solid neighbor as liquid at rest density (its share of a uniform cell-center sample).
+    const ct = this.cellType, s = this.s, rest = this.restDensity;
+    for (let j = 1; j < ny - 1; j++) for (let i = 1; i < nx - 1; i++) {
+      const c = i + j * nx;
+      if (ct[c] !== FLUID) continue;
+      const side = (s[c - 1] === 0 ? 1 : 0) + (s[c + 1] === 0 ? 1 : 0) + (s[c - nx] === 0 ? 1 : 0) + (s[c + nx] === 0 ? 1 : 0);
+      const diag = (s[c - nx - 1] === 0 ? 1 : 0) + (s[c - nx + 1] === 0 ? 1 : 0) + (s[c + nx - 1] === 0 ? 1 : 0) + (s[c + nx + 1] === 0 ? 1 : 0);
+      if (side + diag > 0) d[c] += rest * (side * GHOST_SIDE + diag * GHOST_DIAG);
     }
   }
 }

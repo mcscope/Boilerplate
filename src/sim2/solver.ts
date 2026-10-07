@@ -18,9 +18,10 @@
  *   warm-start pressure; that is exact, because the remaining equations sum to the pinned one (pure Neumann
  *   compatibility), so it only fixes the free additive constant.
  *   The residual r = b − A p is therefore a velocity divergence error in px/s, which is what tolerance measures.
- * - Liquid: α = 0. drift_c = driftCompensation · max(0, density_c − restDensity), in px/s of target net outflow:
- *   driftCompensation has units px/s per (particle per cell). driftCompensation = 1 reproduces the classic solver,
- *   which subtracts the raw particle excess from the divergence (px/s) each solve.
+ * - Liquid: α = 0. drift_c = driftCompensation · (density_c − restDensity), in px/s of target net outflow, applied
+ *   when the cell is compressed (> 0), and when it is expanded (< 0) only if all four neighbors are liquid or solid
+ *   (a surface cell is partly empty, so its low density is not an expansion). driftCompensation has units px/s per
+ *   (particle per cell); 1 subtracts the raw particle excess from the divergence (px/s) each solve.
  * - Boiling source (liquid cells): vapor held in gas.pendingVapor[c] adds a target outflow
  *   frac · h / dt, frac = min(VAPOR_MAX_CELLS, gasPressure(0, pendingVapor, T) / max(p_warm, P_MIN)), i.e. the
  *   vapor's EOS volume in cells at the cell's last solved pressure. The solver only reads pendingVapor: whoever owns
@@ -200,7 +201,15 @@ export function project(grid: MacGrid, gas: GasState, liquid: LiquidFields, opts
     if (cellType[c] === LIQUID) {
       if (drift > 0) {
         const ex = liquid.density[c] - rest;
-        if (ex > 0) div -= drift * ex;
+        // Compressed liquid pushes out. Inside the liquid (no gas neighbor) expanded liquid pulls in too, so the
+        // volume is held at rest both ways and a cell can't empty into a spurious vacuum. A surface cell is only
+        // partly full, so it reads low and isn't pulled.
+        let interior = ex < 0;
+        if (interior) for (let k = 0; k < 4; k++) {
+          const o = k === 0 ? c - 1 : k === 1 ? c + 1 : k === 2 ? c - nx : c + nx;
+          if (status[o] !== ST_SOLID && cellType[o] !== LIQUID) { interior = false; break; }
+        }
+        if (ex > 0 || interior) div -= drift * ex;
       }
       // Boiling source: vapor waiting in this liquid cell (gas.pendingVapor) needs room. Its volume, as a fraction
       // of the cell, is gasPressure(0, pv, T) / p_local; making room for it within this step means a net outflow of
