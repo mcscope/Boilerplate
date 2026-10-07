@@ -113,6 +113,8 @@ export interface GasTransport {
    * Called after cells were (re)classified. For every cell that changed GAS -> LIQUID or GAS -> SOLID, move its
    * air/vapor mass conservatively into nearby gas cells (or into pending if none is reachable). For cells that
    * changed LIQUID -> GAS, start them empty (near-vacuum) but release any pending gas there first.
+   * Cells that changed SOLID -> GAS (an erased wall, burnt wood, melted ice) are filled with ambient air: this
+   * deliberately adds mass, so conservation checks should avoid levels where solids disappear.
    */
   remap(grid: MacGrid, gas: GasState, prevType: Int32Array): void;
   /** Conservative flux-form advection of air, vapor (gas cells only) and T (all non-solid cells) with u, v. */
