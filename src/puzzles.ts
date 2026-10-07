@@ -325,7 +325,7 @@ export const PUZZLES: Level[] = [
   },
   {
     name: '8. Casting',
-    desc: 'A block of wax sits on a shelf. Melt it and cast the statue: fill the marked shape with solid wax.',
+    desc: 'Hot molten wax pours from the left. Cast the statue: fill the marked shape with solid wax.',
     puzzle: {
       goal: {
         zone: { i0: 71, j0: 69, i1: 88, j1: 85 }, kind: WAX, amount: 169, maxExtra: 25,
@@ -350,19 +350,19 @@ export const PUZZLES: Level[] = [
           '.################.',
         ],
       },
-      tools: { wall: Infinity, wood: Infinity, fire: 2 },
-      hint: 'Wax melts above 60° and sets again below 55°. Build a mold around the shape with a channel into the top, and leave the air a way out.',
+      tools: { wall: Infinity },
+      noBuild: [{ i0: 12, j0: 0, i1: 21, j1: 10 }], // around the pipe
+      hint: 'Wax sets as it cools. Build a mold around the shape with a channel into the top, and leave the air a way out as the wax fills it.',
     },
     build: b => {
-      b.solid(16, 56, 44, 57); // shelf
-      b.wax(20, 40, 40, 55);   // the wax block
       b.solid(64, 86, 98, 87); // plinth under the statue
       b.drain(1, 88, 158, 88);
+      b.faucet(30, 6, 4, 40, true, WAX, 0, 290);
     },
   },
   {
     name: '8a. Pawn',
-    desc: 'Hot water pours onto a block of wax. Use it to cast a chess pawn: fill the marked shape with solid wax.',
+    desc: 'A block of wax sits on a shelf. Melt it and cast a chess pawn: fill the marked shape with solid wax.',
     puzzle: {
       goal: {
         zone: { i0: 74, j0: 71, i1: 85, j1: 85 }, kind: WAX, amount: 95, maxExtra: 15,
@@ -386,16 +386,14 @@ export const PUZZLES: Level[] = [
         '############',
         ],
       },
-      tools: { wall: Infinity },
-      noBuild: [{ i0: 12, j0: 0, i1: 21, j1: 10 }], // around the pipe
-      hint: 'Hot water melts wax but sinks underneath it, since water is heavier. Give the water a way out of the mold that the wax can\'t follow.',
+      tools: { wall: Infinity, wood: Infinity, fire: 2 },
+      hint: 'Wax melts above 60° and burns above 300°. A wood fire next to the block melts it without setting it alight, if you keep the flames off the wax.',
     },
     build: b => {
       b.solid(16, 56, 44, 57); // shelf
       b.wax(20, 40, 40, 55);   // the wax block
       b.solid(64, 86, 98, 87); // plinth under the statue
       b.drain(1, 88, 158, 88);
-      b.faucet(30, 6, 4, 50, true, WATER, 0, 99);
     },
   },
   {
