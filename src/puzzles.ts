@@ -361,6 +361,43 @@ export const PUZZLES: Level[] = [
     },
   },
   {
+    name: '7a. Small Casting',
+    desc: 'A block of wax sits on a shelf. Melt it and cast the small statue: fill the marked shape with solid wax.',
+    puzzle: {
+      goal: {
+        zone: { i0: 71, j0: 69, i1: 88, j1: 85 }, kind: WAX, amount: 169, maxExtra: 25,
+        label: 'Fill the statue with solid wax (169 of 188 cells)',
+        shape: [
+        '.......####.......',
+        '......######......',
+        '.....########.....',
+        '.....########.....',
+        '.....########.....',
+        '......######......',
+        '.......####.......',
+        '...############...',
+        '..##############..',
+        '.###..######..###.',
+        '.###..######..###.',
+        '.###..######..###.',
+        '..##############..',
+        '.################.',
+        '##################',
+        '##################',
+        '.################.',
+        ],
+      },
+      tools: { wall: Infinity, wood: Infinity, fire: 0.4 },
+      hint: 'Wax melts above 60° and burns above 300°. A wood fire next to the block melts it without setting it alight, if you keep the flames off the wax.',
+    },
+    build: b => {
+      b.solid(16, 56, 44, 57); // shelf
+      b.wax(20, 40, 40, 55);   // the wax block
+      b.solid(64, 86, 98, 87); // plinth under the statue
+      b.drain(1, 88, 158, 88);
+    },
+  },
+  {
     name: '8. Meltwater',
     desc: 'A block of ice sits on a shelf, and hot water pours from the left. Fill the marked area with cold water.',
     puzzle: {
