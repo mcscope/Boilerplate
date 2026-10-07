@@ -356,11 +356,22 @@ export class Renderer {
           const mud: RGB = depth === 0 ? [176, 146, 104] : depth > 24 ? [96, 70, 44] : [128, 96, 62];
           col = [col[0] + (mud[0] - col[0]) * a, col[1] + (mud[1] - col[1]) * a, col[2] + (mud[2] - col[2]) * a];
         }
-        // Alcohol turns water toward a pale, clear violet: strong spirits stand out from a mash.
+        // Alcohol shifts hue with strength: weak mash is amber, spirits go pale violet,
+        // and strong spirits are nearly clear white.
         const alc = pal === WATER && cellN[c] > 0 ? cellAlc[c] / cellN[c] : 0;
         if (alc > 0.03) {
-          const a = Math.min(0.7, alc * 0.9);
-          const spirit: RGB = depth === 0 ? [236, 226, 255] : [176, 160, 236];
+          const a = Math.min(0.85, 0.35 + alc);
+          const STOPS: [number, RGB, RGB][] = [
+            [0.1, [214, 168, 84], [150, 104, 44]], // mash: amber
+            [0.4, [214, 196, 255], [150, 124, 222]], // spirits: violet
+            [0.75, [246, 244, 255], [206, 200, 240]], // strong: clear
+          ];
+          let s = 0;
+          while (s < STOPS.length - 2 && alc > STOPS[s + 1][0]) s++;
+          const [x0, top0, deep0] = STOPS[s], [x1, top1, deep1] = STOPS[s + 1];
+          const t = Math.max(0, Math.min(1, (alc - x0) / (x1 - x0)));
+          const c0 = depth === 0 ? top0 : deep0, c1 = depth === 0 ? top1 : deep1;
+          const spirit: RGB = [c0[0] + (c1[0] - c0[0]) * t, c0[1] + (c1[1] - c0[1]) * t, c0[2] + (c1[2] - c0[2]) * t];
           col = [col[0] + (spirit[0] - col[0]) * a, col[1] + (spirit[1] - col[1]) * a, col[2] + (spirit[2] - col[2]) * a];
         }
         const o = (y * W + x) * 4;
