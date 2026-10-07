@@ -42,9 +42,11 @@
  *    the solid, the droplet forms in the gas cell.
  * 4. Fog: vapor above saturatedVapor(T_gas) condenses in the gas at K_FOG, limited so the latent heat released
  *    into the cell doesn't overshoot equilibrium.
- * 5. Coalesce partial balances (merge into a larger neighbor up to 2 cells away; an isolated partial condensate
- *    drifts down at K_SETTLE so films run down walls and collect), settle accumulators (remove / spawn particles),
- *    apply queued heat (to particle temps where the cell has particles, else to the cell T).
+ * 5. Coalesce partial balances (opposite balances in neighboring cells net out; otherwise merge into a larger
+ *    neighbor up to 2 cells away; an isolated partial condensate drifts down at K_SETTLE so films run down walls
+ *    and collect), pool the partial balances of each connected body of water into one cell so they add up to
+ *    whole particles, settle accumulators (remove / spawn particles), apply queued heat (to particle temps where
+ *    the cell has particles, a neighbor's particles if a liquid cell lost all of its own, else to the cell T).
  */
 import {
   GAS, LIQUID, LATENT_VAPORIZATION, P0, PhaseContext, saturatedVapor,
@@ -93,7 +95,7 @@ const st = {
   accM: new Float64Array(0), accH: new Float64Array(0), dQ: new Float64Array(0),
   nAll: new Int32Array(0), nLive: new Int32Array(0), nWater: new Int32Array(0),
   sumTW: new Float64Array(0), satL: new Float64Array(0),
-  start: new Int32Array(0), fill: new Int32Array(0),
+  start: new Int32Array(0), fill: new Int32Array(0), pool: new Int32Array(0), stack: new Int32Array(0),
   list: new Int32Array(0), cellOf: new Int32Array(0), dead: new Uint8Array(0), removeList: new Int32Array(0),
 };
 
@@ -108,6 +110,7 @@ function ensure(n: number, mp: number, vapor: Float32Array) {
     st.nAll = new Int32Array(n); st.nLive = new Int32Array(n); st.nWater = new Int32Array(n);
     st.sumTW = new Float64Array(n); st.satL = new Float64Array(n);
     st.start = new Int32Array(n + 1); st.fill = new Int32Array(n);
+    st.pool = new Int32Array(n); st.stack = new Int32Array(n);
   }
   if (mp > maxP) {
     maxP = mp;
@@ -263,6 +266,20 @@ export function phaseChange(ctx: PhaseContext): void {
     if (m === 0) continue;
     const debt = m > 0;
     if (debt ? m >= MP && nWater[c] > 0 : m <= -MP && s[c] !== 0) continue;
+    // Opposite balances next to each other belong to the same water (condensate touching liquid that owes
+    // evaporation): net them out instead of keeping both, settling the heat difference as real heat (accAdd).
+    let opp = -1, oppM = 0;
+    for (let f = 0; f < 4; f++) {
+      const o = f === 0 ? c - nx : f === 1 ? c - 1 : f === 2 ? c + 1 : c + nx;
+      const mo = accM[o];
+      if (s[o] === 0 || (debt ? mo >= 0 : mo <= 0) || (nWater[o] === 0 && nWater[c] === 0)) continue;
+      if (Math.abs(mo) > oppM) { oppM = Math.abs(mo); opp = o; }
+    }
+    if (opp >= 0) {
+      accAdd(accM, accH, dQ, opp, m, accH[c] / m);
+      accM[c] = 0; accH[c] = 0;
+      continue;
+    }
     const orphan = debt ? nWater[c] === 0 : s[c] === 0;
     let best = -1, bestM = orphan ? -1 : Math.abs(m);
     // 4 neighbors, then cells 2 away (through an open / watery middle cell), so isolated partial balances merge too
@@ -285,6 +302,38 @@ export function phaseChange(ctx: PhaseContext): void {
     if (best < 0) continue;
     accM[best] += m; accH[best] += accH[c];
     accM[c] = 0; accH[c] = 0;
+  }
+
+  // ---- 5a'. pool partial balances per body of water: every cell holding water that is 4-connected to another is
+  // the same liquid, so its fractions of a particle (condensate that landed on it, evaporation it owes) add up
+  // to whole particles instead of each staying below one. They move with accAdd (heat differences settle as
+  // real heat), into the cell of that body holding the largest balance. ----
+  {
+    const { pool, stack } = st;
+    pool.fill(-1);
+    for (let c0 = nx; c0 < n - nx; c0++) {
+      if (nWater[c0] === 0 || pool[c0] !== -1) continue;
+      // flood the body, remembering the cell with the largest partial balance
+      let top = 0, head = 0, target = -1, targetM = 0;
+      stack[top++] = c0; pool[c0] = c0;
+      while (head < top) {
+        const c = stack[head++];
+        const am = Math.abs(accM[c]);
+        if (am > targetM) { targetM = am; target = c; }
+        for (let f = 0; f < 4; f++) {
+          const o = f === 0 ? c - nx : f === 1 ? c - 1 : f === 2 ? c + 1 : c + nx;
+          if (nWater[o] === 0 || pool[o] !== -1 || s[o] === 0) continue;
+          pool[o] = c0; stack[top++] = o;
+        }
+      }
+      if (target < 0 || top < 2) continue;
+      for (let q = 0; q < top; q++) {
+        const c = stack[q], m = accM[c];
+        if (c === target || m === 0 || Math.abs(m) >= MP) continue;
+        accAdd(accM, accH, dQ, target, m, accH[c] / m);
+        accM[c] = 0; accH[c] = 0;
+      }
+    }
   }
 
   // ---- 5b. settle debts: remove whole water particles ----
@@ -316,6 +365,15 @@ export function phaseChange(ctx: PhaseContext): void {
   }
 
   // ---- 5b. apply queued heat ----
+  // A liquid cell whose particles were all removed has no heat store of its own (its T follows its particles):
+  // hand its heat to a neighbor's liquid.
+  for (let c = nx; c < n - nx; c++) {
+    if (dQ[c] === 0 || nLive[c] > 0 || s[c] === 0 || cellType[c] !== LIQUID) continue;
+    for (let f = 0; f < 4; f++) {
+      const o = f === 0 ? c - nx : f === 1 ? c - 1 : f === 2 ? c + 1 : c + nx;
+      if (nLive[o] > 0) { dQ[o] += dQ[c]; dQ[c] = 0; break; }
+    }
+  }
   for (let c = 0; c < n; c++) {
     const q = dQ[c];
     if (q === 0) continue;
