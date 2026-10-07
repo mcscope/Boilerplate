@@ -43,6 +43,7 @@ export interface Goal {
   minPurity?: number; // fraction of the liquid in the zone that must be `kind`
   maxSilt?: number; // dirt allowed: suspended silt plus anything settled in the zone, per unit of liquid
   minTemp?: number; // average temperature required, °C
+  maxTemp?: number; // average temperature allowed, °C
   /** Fill-with-mud goal: `amount` is the number of cells in the zone that must be settled mud (kind is ignored). */
   mud?: boolean;
   /**
@@ -343,7 +344,8 @@ export class World {
     g.temp = mine ? temp / mine : 0;
     g.met = mine >= goal.amount && (goal.minPurity === undefined || g.purity >= goal.minPurity)
       && (goal.maxSilt === undefined || g.silt <= goal.maxSilt)
-      && (goal.minTemp === undefined || g.temp >= goal.minTemp);
+      && (goal.minTemp === undefined || g.temp >= goal.minTemp)
+      && (goal.maxTemp === undefined || g.temp <= goal.maxTemp);
   }
 
   /** Number of particles inside a cell rect: handy for goals and tests. */

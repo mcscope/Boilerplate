@@ -266,6 +266,7 @@ function goalChecks(goal: Goal, g: GoalStatus) {
   if (goal.minPurity !== undefined) checks.push(`Purity <b class="${g.purity >= goal.minPurity ? 'ok' : 'bad'}">${Math.round(g.purity * 100)}%</b> (need ${Math.round(goal.minPurity * 100)}%)`);
   if (goal.maxSilt !== undefined) checks.push(`Dirt <b class="${g.silt <= goal.maxSilt ? 'ok' : 'bad'}">${Math.round(g.silt * 100)}%</b> (max ${Math.round(goal.maxSilt * 100)}%)`);
   if (goal.maxExtra !== undefined) checks.push(`Spill <b class="${(g.extra ?? 0) <= goal.maxExtra ? 'ok' : 'bad'}">${g.extra ?? 0}</b> (max ${goal.maxExtra})`);
+  if (goal.maxTemp !== undefined) checks.push(`Temperature <b class="${g.temp <= goal.maxTemp ? 'ok' : 'bad'}">${Math.round(g.temp)}°</b> (max ${goal.maxTemp}°)`);
   if (goal.minTemp !== undefined) checks.push(`Temperature <b class="${g.temp >= goal.minTemp ? 'ok' : 'bad'}">${Math.round(g.temp)}°</b> (need ${goal.minTemp}°)`);
   return checks;
 }

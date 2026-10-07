@@ -106,6 +106,24 @@ export const PUZZLES: Level[] = [
     },
   },
   {
+    name: '2c. Hero\'s Fountain',
+    desc: 'Get water into the marked area, higher than the faucet. No fire, no steam: just water, walls, and a sealed tank of water.',
+    puzzle: {
+      goal: { zone: { i0: 104, j0: 10, i1: 118, j1: 24 }, kind: WATER, amount: 150, label: '150 water up high' },
+      tools: { wall: Infinity },
+      hint: 'Falling water can squeeze trapped air, and squeezed air pushes on whatever water it touches.',
+      noBuild: [{ i0: 17, j0: 28, i1: 26, j1: 36 }], // around the pipe
+    },
+    build: b => {
+      // A sealed tank full of water, with a port in its roof (left) and a port low in its right side.
+      b.solid(68, 42, 71, 62); b.solid(91, 42, 94, 56); b.solid(91, 59, 94, 62); b.solid(68, 61, 94, 62);
+      b.solid(68, 42, 71, 43); b.solid(74, 42, 94, 43);
+      b.water(72, 44, 90, 60);
+      b.drain(1, 88, 158, 88);
+      b.faucet(40, 70, 4, 60, true, WATER);
+    },
+  },
+  {
     name: '3. Clear Water',
     desc: 'Muddy water pours onto a short stone shelf. Hold a pool of clear water in the marked area at its right end.',
     puzzle: {
@@ -242,6 +260,20 @@ export const PUZZLES: Level[] = [
     },
   },
   {
+    name: '5c. Muddy Still',
+    desc: 'Muddy water pours from the left. Get perfectly clean water into the marked area on the right.',
+    puzzle: {
+      goal: { zone: { i0: 122, j0: 66, i1: 142, j1: 85 }, kind: WATER, amount: 150, maxSilt: 0.02, label: '150 water, under 2% dirt' },
+      tools: { wall: Infinity, wood: Infinity, fire: 0.4 },
+      hint: 'Settling is too slow to get water this clean. When water boils away, it leaves its dirt behind.',
+      noBuild: [{ i0: 17, j0: 0, i1: 26, j1: 10 }], // around the pipe
+    },
+    build: b => {
+      b.drain(1, 88, 158, 88);
+      b.faucet(40, 6, 4, 60, true, WATER, 0.9);
+    },
+  },
+  {
     name: '6. Steam Pump',
     desc: 'A sealed boiler with one hole in its side, and a cup far above it. Get the boiler\'s water into the cup.',
     puzzle: {
@@ -326,6 +358,22 @@ export const PUZZLES: Level[] = [
       b.solid(52, 86, 108, 87); // plinth under the statue
       b.drain(1, 88, 158, 88);
       b.faucet(30, 6, 4, 40, true, WAX, 0, 290);
+    },
+  },
+  {
+    name: '8. Meltwater',
+    desc: 'A block of ice sits on a shelf, and hot water pours from the left. Fill the marked area with cold water.',
+    puzzle: {
+      goal: { zone: { i0: 120, j0: 66, i1: 140, j1: 85 }, kind: WATER, amount: 300, maxTemp: 25, label: '300 water at 25° or colder' },
+      tools: { wall: Infinity },
+      hint: 'Melting ice soaks up a lot of heat. Water that has run over enough ice comes off cold.',
+      noBuild: [{ i0: 12, j0: 0, i1: 21, j1: 10 }], // around the pipe
+    },
+    build: b => {
+      b.solid(56, 71, 96, 72); // shelf
+      b.ice(60, 46, 92, 70);
+      b.drain(1, 88, 158, 88);
+      b.faucet(30, 6, 4, 50, true, WATER, 0, 90);
     },
   },
 ];
