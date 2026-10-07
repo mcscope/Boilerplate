@@ -107,20 +107,18 @@ export const PUZZLES: Level[] = [
   },
   {
     name: '2c. Overpressure',
-    desc: 'The beaker is high up and out of reach. A pipe from it comes down to the middle of the room. Get water up into the beaker.',
+    desc: 'The beaker is high up and out of reach. Below it, a fountainhead points up from the middle of the room. Fill the beaker.',
     puzzle: {
-      goal: { zone: { i0: 120, j0: 8, i1: 136, j1: 18 }, kind: WATER, amount: 150, label: '150 water in the high beaker' },
+      goal: { zone: { i0: 116, j0: 12, i1: 136, j1: 22 }, kind: WATER, amount: 150, label: '150 water in the high beaker' },
       tools: { wall: Infinity },
-      hint: 'Water climbs a pipe when the water around its bottom is pushed harder than the air at its top. Seal the bottom in, and feed the seal from higher up.',
-      noBuild: [{ i0: 104, j0: 1, i1: 158, j1: 40 }], // the beaker and the top of the pipe
+      hint: 'Water shoots out of a nozzle when the water below it is pushed hard. Seal the nozzle\'s bottom in, and press on the water there from higher up.',
+      noBuild: [{ i0: 104, j0: 1, i1: 158, j1: 44 }], // the beaker and everything above the fountainhead
     },
     build: b => {
-      // High beaker.
-      b.solid(118, 10, 119, 20); b.solid(137, 6, 138, 20); b.solid(118, 19, 138, 20);
-      // The fountainhead: a pipe from a spout over the beaker down to the middle of the room, open at the bottom.
-      b.solid(109, 7, 122, 7);               // spout ceiling
-      b.solid(112, 10, 117, 10);             // spout floor
-      b.solid(109, 7, 109, 45); b.solid(112, 10, 112, 45);
+      // High beaker, its left wall right beside the fountainhead's line.
+      b.solid(114, 12, 115, 24); b.solid(137, 8, 138, 24); b.solid(114, 23, 138, 24);
+      // Fountainhead: a short upright nozzle (interior i 111..112), mouth at mid-height, open at the bottom.
+      b.solid(110, 45, 110, 56); b.solid(113, 45, 113, 56);
       b.drain(1, 88, 158, 88);
       b.faucet(40, 6, 4, 100, true, WATER);
     },

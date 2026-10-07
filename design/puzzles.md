@@ -47,7 +47,7 @@ Water falls, flows down slopes and carries speed. Walls shape where it goes.
 Liquid finds its level (connected vessels, siphons), and air is a real gas that compresses and pushes back.
 - **2. Same Level:** connected vessels: water rises on the far side of a U-tube.
 - **2b. Over the Top:** a siphon carries water over a rim higher than the beaker.
-- **2c. Overpressure:** the beaker is out of reach; seal in the bottom of the pipe that feeds it and pressurize it from higher up.
+- **2c. Overpressure:** the beaker is out of reach; pressurize the water under a fountainhead so its jet shoots up into the beaker.
 
 ### 3. Suspension: water carries mud
 Fast water carries silt; calm water drops it, and it builds up as mud.
