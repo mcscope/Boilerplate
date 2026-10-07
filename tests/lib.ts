@@ -180,7 +180,7 @@ export function gasCellsIn(w: World, r: Rect) {
  */
 export function gasTotals(w: World, r?: Rect): { air: number; vapor: number } {
   const R = r ?? rect(0, 0, NX - 1, NY - 1);
-  const g = w.unified.gasState;
+  const g = w.fluid.gasState;
   let air = 0, vapor = 0;
   for (let j = R.j0; j <= R.j1; j++) for (let i = R.i0; i <= R.i1; i++) {
     const c = i + j * NX;
@@ -275,7 +275,7 @@ export function ascii(w: World, r: Rect) {
   const f = w.fluid, cnt = new Map<number, number>(), steam = new Set<number>();
   const cellOf = (x: number, y: number) => Math.floor(x / CELL) + Math.floor(y / CELL) * NX;
   for (let k = 0; k < f.count; k++) { const c = cellOf(f.pos[2 * k], f.pos[2 * k + 1]); cnt.set(c, (cnt.get(c) ?? 0) + 1); }
-  const vapor = w.unified.gasState.vapor;
+  const vapor = w.fluid.gasState.vapor;
   for (let c = 0; c < vapor.length; c++) if (vapor[c] > 0.002) steam.add(c);
   const lines: string[] = [];
   for (let j = r.j0; j <= r.j1; j++) {

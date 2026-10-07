@@ -1,13 +1,14 @@
 import { AIR, FLUID, Fluid, OIL, WATER, WAX } from './fluid';
 
 /**
- * Heat, fire and phase changes on top of the liquid simulation.
+ * Heat, fire, freezing and melting on top of the liquid simulation.
  *
  * - Every grid cell has a temperature; liquid particles carry their own and share it with their cell.
- * - Heat conducts between neighboring cells (stone, ice and liquids well; air poorly) and hot air rises.
- * - Water boils into steam particles above 100°, which rise, add gas pressure to their air pocket,
- *   and condense back into water when they cool. Water freezes into solid ice cells below 0°; ice melts above.
- * - Oil touching air ignites above 250° and burns away, throwing off heat and flames.
+ * - Heat conducts between neighboring cells (stone, ice and liquids well; air poorly). Hot gas rising, boiling
+ *   and condensation belong to the unified engine (src/sim2); steam made here (drying wood) goes to `vaporSink`.
+ * - Water freezes into solid ice cells below 0° and wax sets below 55°; both melt again when warmed.
+ * - Oil and wax touching air ignite above their flash points and burn away; wood burns, soaks up liquids and
+ *   can act as a wick.
  */
 
 export const AMBIENT = 20;

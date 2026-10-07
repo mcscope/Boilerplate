@@ -7,7 +7,7 @@ import { Builder, Level } from './world';
  */
 
 /**
- * Shared layout for the Oil Press puzzles: a sealed boiler over a firebox, a sealed oil tank, and a cup.
+ * Layout for 7a Water Bridge: a sealed boiler over a firebox, a sealed oil tank, and a cup.
  * Steam pressure pushes the boiler's water through a pipe into the bottom of the oil tank, which lifts the oil
  * up a riser from the top of the tank and into the cup. Steam can't get to the oil, and condensing can't move it.
  */

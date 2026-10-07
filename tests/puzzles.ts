@@ -44,26 +44,8 @@ const FIRE_RADIUS = 6;
 /** Light a fire at (x, y) for the first `frames` frames. */
 const torch = (x: number, y: number, frames = 24) => (frame: number, fire: Fire) => { if (frame < frames) fire(x, y); };
 
-/** Casting: a chute from the wax spout to the statue's top. */
-const castingChute = (spend: Spend) => { for (let i = 12; i <= 77; i++) { const j = Math.round(22 + (i - 12) * 0.25); spend(STONE, 'wall', i, j, i, j + 1); } };
 
 const SOLUTIONS: Record<string, Solution[]> = {
-  '8. Casting': [{
-    label: 'full mold + sprue', expect: 'solve', seconds: 300,
-    build: (spend, w) => {
-      const goal = w.level!.puzzle!.goal, z = goal.zone, shape = goal.shape!;
-      // Mold: every cell of the statue's box (plus a 2-cell ring) that isn't statue.
-      for (let j = z.j0; j <= z.j1; j++) for (let i = z.i0 - 2; i <= z.i1 + 2; i++)
-        if (shape[j - z.j0]?.[i - z.i0] !== '#') spend(STONE, 'wall', i, j, i, j);
-      // Sprue: a wide pour channel down into the top knot (statue columns 76-83), open at the top for air.
-      spend(STONE, 'wall', 74, 40, 75, 51); spend(STONE, 'wall', 84, 40, 85, 51);
-      castingChute(spend);
-    },
-  }, {
-    label: 'chute only, no mold', expect: 'fail', seconds: 300,
-    build: spend => castingChute(spend),
-  }],
-
   '1. First Pour': [{
     label: 'long gentle chute', expect: 'solve',
     build: spend => { for (let i = 14; i <= 112; i++) { const j = Math.round(30 + (i - 14) * 0.24); spend(STONE, 'wall', i, j, i, j + 1); } },

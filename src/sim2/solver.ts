@@ -19,7 +19,7 @@
  *   compatibility), so it only fixes the free additive constant.
  *   The residual r = b − A p is therefore a velocity divergence error in px/s, which is what tolerance measures.
  * - Liquid: α = 0. drift_c = driftCompensation · max(0, density_c − restDensity), in px/s of target net outflow:
- *   driftCompensation has units px/s per (particle per cell). driftCompensation = 1 reproduces the classic solver,
+ *   driftCompensation has units px/s per (particle per cell). driftCompensation = 1 matches the original FLIP solver,
  *   which subtracts the raw particle excess from the divergence (px/s) each solve.
  * - Boiling source (liquid cells): vapor held in gas.pendingVapor[c] adds a target outflow
  *   frac · h / dt, frac = min(VAPOR_MAX_CELLS, gasPressure(0, pendingVapor, T) / max(p_warm, P_MIN)), i.e. the

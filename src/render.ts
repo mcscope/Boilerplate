@@ -256,12 +256,11 @@ export class Renderer {
     out.set(this.staticLayer);
     const f = world.fluid;
 
-    const uf = world.unified;
 
     this.drawWater(world);
     // The pressure field covers liquid too, so tint after the water (half strength over liquid).
     if (opts.view === 'pressure') {
-      const p = uf.pressure, ct = f.cellType;
+      const p = f.pressure, ct = f.cellType;
       for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
         const c = Math.floor(x / CELL) + Math.floor(y / CELL) * NX;
         if (ct[c] === SOLID || f.s[c] === 0) continue;
@@ -269,7 +268,7 @@ export class Renderer {
       }
     }
     this.drawBurningWood(world);
-    if (uf) this.drawVapor(world);
+    this.drawVapor(world);
     this.drawSteamAndFire(world);
 
     if (opts.view === 'temperature') {
@@ -491,11 +490,11 @@ export class Renderer {
   }
 
   /**
-   * Unified: water vapor as soft white mist. Density is sampled bilinearly per pixel and quantized with a
-   * drifting 4×4 ordered dither, so it reads as pixel-art haze like the classic steam puffs.
+   * Water vapor as soft white mist. Density is sampled bilinearly per pixel and quantized with a
+   * drifting 4×4 ordered dither, so it reads as pixel-art haze.
    */
   private drawVapor(world: World) {
-    const uf = world.unified!, f = world.fluid, out = this.img.data, vap = uf.gasState.vapor, T = uf.gasState.T, ct = f.cellType;
+    const f = world.fluid, out = this.img.data, vap = f.gasState.vapor, T = f.gasState.T, ct = f.cellType;
     const drift = Math.floor(world.time * 6);
     // Water vapor itself is invisible (it's just humidity). What you see as steam is vapor the air can't hold at
     // its temperature, condensing into tiny droplets: draw only the excess over saturation.

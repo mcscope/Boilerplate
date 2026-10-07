@@ -1,4 +1,4 @@
-import { Fluid, OIL, WATER, WAX } from './sim/fluid';
+import { OIL, WATER, WAX } from './sim/fluid';
 import { CELL_OF_MUD, Sediment } from './sim/sediment';
 import { AMBIENT, HEATER, ICE, MUD, NONE, STEAM_VAPOR, STONE, Thermo, WAX_SOLID, WOOD, WOOD_FUEL } from './sim/thermo';
 import { alcoholBurning } from './sim2/phase';
@@ -136,11 +136,9 @@ export class Builder {
 }
 
 export class World {
-  readonly fluid: Fluid;
+  readonly fluid: UnifiedFluid;
   readonly thermo: Thermo;
   readonly sediment: Sediment;
-  /** The fluid, as its concrete type (same object as `fluid`). */
-  readonly unified: UnifiedFluid;
   emitters: Emitter[] = [];
   drains: Rect[] = [];
   solidVersion = 0;
@@ -160,7 +158,6 @@ export class World {
 
   constructor() {
     const unified = new UnifiedFluid(NX, NY, CELL, MAX_PARTICLES);
-    this.unified = unified;
     this.fluid = unified;
     this.thermo = new Thermo(this.fluid);
     this.sediment = new Sediment(this.fluid, this.thermo);
@@ -246,7 +243,7 @@ export class World {
   }
 
   steam(x: number, y: number, r: number) {
-    this.unified.addVapor(x, y, r, Math.ceil(r) * STEAM_VAPOR, 115);
+    this.fluid.addVapor(x, y, r, Math.ceil(r) * STEAM_VAPOR, 115);
   }
 
   sponge(x: number, y: number, r: number) {

@@ -1,7 +1,6 @@
 /**
- * Shared contract for the unified physics engine (design/unified-physics.md).
- * Agents implementing solver.ts, gas.ts, phase.ts and unified.ts code against these types.
- * Don't change this file without coordinating: other modules depend on it.
+ * Shared types and constants for the physics engine (design/unified-physics.md): the solver, gas transport and
+ * phase change modules and UnifiedFluid all code against these.
  *
  * Grid conventions match src/sim/fluid.ts exactly:
  * - cell (i, j) has index c = i + j * nx; y points down; cell size h px.
@@ -15,7 +14,7 @@ export const LIQUID = 0;
 export const GAS = 1;
 export const SOLID = 2;
 
-/** Atmospheric pressure, in (water density) * px²/s². Same value as the classic AIR_STIFFNESS. */
+/** Atmospheric pressure, in (water density) * px²/s²: it holds up a ~75 px water column, so gas effects show. */
 export const P0 = 60000;
 /** Mass density of ambient air (water = 1). Real ratio is 1/830; exaggerated for numerical stability. */
 export const RHO_AIR = 0.02;
@@ -91,7 +90,7 @@ export interface ProjectOptions {
   /** Max PCG iterations and relative tolerance. */
   maxIters: number;
   tolerance: number;
-  /** Strength of liquid volume-drift compensation (0 disables), as in the classic solver. */
+  /** Strength of liquid volume-drift compensation (0 disables). */
   driftCompensation: number;
 }
 
@@ -100,14 +99,6 @@ export interface ProjectResult {
   residual: number;
 }
 
-/**
- * A: pressure solver (src/sim2/solver.ts).
- * Given the velocity field after body forces (u*, v*), solve the unified variable-density, compressible-gas /
- * incompressible-liquid pressure equation and apply the pressure gradient to u, v in place.
- * Writes the solved pressure (absolute, same units as P0) into `pressureOut` for every non-solid cell
- * (solid cells: 0). Must not allocate per call beyond first use (cache work arrays).
- */
-export type ProjectFn = (grid: MacGrid, gas: GasState, liquid: LiquidFields, opts: ProjectOptions, pressureOut: Float32Array) => ProjectResult;
 
 /** Equation-of-state pressure of a gas cell (alc: alcohol vapor mass density). */
 export function gasPressure(air: number, vapor: number, T: number, alc = 0): number {
@@ -197,4 +188,3 @@ export interface PhaseContext {
   restDensity: number;
 }
 
-export type PhaseChangeFn = (ctx: PhaseContext) => void;
