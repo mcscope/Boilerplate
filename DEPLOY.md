@@ -23,10 +23,11 @@ This produces:
 
    ```python
    from boilerplate import bp as boilerplate
-   app.register_blueprint(boilerplate, url_prefix="/boilerplate")
+   app.register_blueprint(boilerplate, url_prefix="/game/boilerplate")
    ```
 
-3. Deploy as usual. The game is at `https://mcscope.com/boilerplate/`. A request for `/boilerplate` without the
+3. Deploy as usual. The game is at `http://mcscope.com/game/boilerplate/` (mcscope.com also registers it a second
+   time at `/game/pressure-lab/`, the old name). A request for `/game/boilerplate` without the
    trailing slash redirects to it, because the game loads its assets by relative path.
 
 Any `url_prefix` works, including `/` if the game should be the whole site.
