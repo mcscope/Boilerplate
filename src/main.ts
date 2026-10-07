@@ -64,7 +64,6 @@ const RENAMED: Record<string, string> = {
   '6a. Water Bridge': '7a. Water Bridge',
   '7. Casting': '8. Casting',
   '7a. Pawn': '8a. Pawn',
-  '8. Meltwater': '9. Meltwater',
 };
 const currentName = (n: string) => RENAMED[n] ?? n;
 try { for (const n of JSON.parse(localStorage.getItem('solved') ?? '[]')) solved.add(currentName(n)); } catch { /* storage unavailable */ }

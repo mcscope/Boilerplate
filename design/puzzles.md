@@ -82,11 +82,6 @@ Molten wax flows while hot and sets where it cools, so molds shape it.
 - **8. Casting:** melt a wax block with a wood fire and cast a small statue.
 - **8a. Pawn:** hot water melts a wax block; cast a pawn, keeping the (heavier) water out of the mold.
 
-### 9. Latent heat: melting absorbs heat
-Ice soaks up a lot of heat as it melts, so water that runs over ice comes off cold.
-- **9. Meltwater:** turn a hot faucet into cold water by running it over an ice block. ⚠️ **Needs work** (playtest, 2026-10-07).
-
-
 ### 10. Mixtures (advanced)
 Liquids that mix can still be pulled apart by how readily each one boils. Builds on heat (ch. 5).
 - **10. Column Still:** concentrate alcohol out of a mash. A pot still only gets partway; a tall column where vapor partly condenses and drips back makes it stronger with each stage. Alcohol vapor is flammable.
@@ -119,7 +114,7 @@ Ideas not built yet, filed where they would teach.
   - **Floating Lid:** molten wax sets into an insulating lid on hot water.
 - **Ch. 9, Latent heat**
   - **Thaw:** melt an ice plug with heat routed from far away.
-- **Dropped:** anything needing Chill (Freeze the Leak, Ice Sculpture, Cold Snap).
+- **Dropped:** anything needing Chill (Freeze the Leak, Ice Sculpture, Cold Snap); Meltwater (cut 2026-10-07 after playtest).
 
 ### Ch. 10 and later: machines (once rigid bodies exist)
 Moving solids open a new layer: float valves, bucket seesaws, piston engines, water wheels, wax thermostats, and the lava lamp. See [rigid-bodies.md](rigid-bodies.md).

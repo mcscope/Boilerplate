@@ -399,23 +399,6 @@ export const PUZZLES: Level[] = [
     },
   },
   {
-    // NEEDS WORK (playtest feedback, 2026-10-07); see design/puzzles.md.
-    name: '9. Meltwater',
-    desc: 'A block of ice sits on a shelf, and hot water pours from the left. Fill the marked area with cold water.',
-    puzzle: {
-      goal: { zone: { i0: 120, j0: 66, i1: 140, j1: 85 }, kind: WATER, amount: 300, maxTemp: 25, label: '300 water at 25° or colder' },
-      tools: { wall: Infinity },
-      hint: 'Melting ice soaks up a lot of heat. Water that has run over enough ice comes off cold.',
-      noBuild: [{ i0: 12, j0: 0, i1: 21, j1: 10 }], // around the pipe
-    },
-    build: b => {
-      b.solid(56, 71, 96, 72); // shelf
-      b.ice(60, 46, 92, 70);
-      b.drain(1, 88, 158, 88);
-      b.faucet(30, 6, 4, 50, true, WATER, 0, 90);
-    },
-  },
-  {
     name: '10. Column Still',
     desc: 'A vat of mash (15% alcohol) stands over an empty firebox. Collect strong spirits in the marked area on the right.',
     puzzle: {
