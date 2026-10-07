@@ -274,6 +274,25 @@ export const PUZZLES: Level[] = [
     },
   },
   {
+    name: '5d. Fire Bomb',
+    desc: 'Six bundles of wood sit on ledges around the room. Burn every last one, with a single spark.',
+    puzzle: {
+      goal: { zone: { i0: 1, j0: 1, i1: 158, j1: 87 }, kind: WATER, amount: 176, burn: true, label: 'Burn all the wood (176 cells)' },
+      tools: { wall: Infinity, oil: Infinity, water: Infinity, fire: 0.4 },
+      hint: 'Burning oil spreads fire wherever it flows. And water hitting burning oil flashes to steam and throws the flaming oil around.',
+    },
+    build: b => {
+      // Bundles on little stone ledges: three on the left, three on the right.
+      b.solid(8, 30, 16, 30); b.wood(9, 26, 15, 29);
+      b.solid(20, 55, 28, 55); b.wood(21, 51, 27, 54);
+      b.solid(6, 78, 14, 78); b.wood(7, 74, 13, 77);
+      b.solid(140, 22, 150, 22); b.wood(141, 18, 149, 21);
+      b.solid(128, 48, 136, 48); b.wood(129, 44, 135, 47);
+      b.solid(144, 72, 152, 72); b.wood(145, 68, 151, 71);
+      b.drain(1, 88, 158, 88);
+    },
+  },
+  {
     name: '6. Steam Pump',
     desc: 'A sealed boiler with one hole in its side, and a cup far above it. Get the boiler\'s water into the cup.',
     puzzle: {

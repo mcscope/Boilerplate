@@ -44,6 +44,8 @@ export interface Goal {
   maxTemp?: number; // average temperature allowed, °C
   /** Fill-with-mud goal: `amount` is the number of cells in the zone that must be settled mud (kind is ignored). */
   mud?: boolean;
+  /** Burn goal: the level's wood in the zone must burn away; `amount` is how many wood cells the level starts with. */
+  burn?: boolean;
   /**
    * Casting goal: a silhouette ('#' = cell) placed at the zone's top-left corner. `amount` cells of it must be solid
    * wax, with at most `maxExtra` cells of solid wax elsewhere in the zone.
@@ -289,6 +291,13 @@ export class World {
 
   private measureGoal(goal: Goal, g: GoalStatus) {
     const f = this.fluid, z = goal.zone;
+    if (goal.burn) {
+      let left = 0;
+      for (let j = z.j0; j <= z.j1; j++) for (let i = z.i0; i <= z.i1; i++) if (this.thermo.mat[i + j * NX] === WOOD) left++;
+      g.amount = Math.max(0, goal.amount - left);
+      g.met = left === 0;
+      return;
+    }
     if (goal.shape) {
       let inside = 0, extra = 0;
       for (let j = z.j0; j <= z.j1; j++) for (let i = z.i0; i <= z.i1; i++) {

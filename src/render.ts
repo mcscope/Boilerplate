@@ -375,6 +375,7 @@ export class Renderer {
       const o = (y * W + x) * 4;
       out[o] += (c[0] - out[o]) * a; out[o + 1] += (c[1] - out[o + 1]) * a; out[o + 2] += (c[2] - out[o + 2]) * a;
     };
+    if (goal.burn) return; // the wood itself is the target
     if (goal.shape) {
       // Casting goal: tint the silhouette and dot its outline.
       const inShape = (i: number, j: number) => goal.shape![j - z.j0]?.[i - z.i0] === '#';
