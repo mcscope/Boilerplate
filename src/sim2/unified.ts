@@ -6,7 +6,7 @@
  */
 import { Fluid } from '../sim/fluid';
 import { gasTransport } from './gas';
-import { phaseChange } from './phase';
+import { phaseChange, resetPhase } from './phase';
 import { project } from './solver';
 import { GAS, GasState, LiquidFields, P0, PhaseContext, ProjectOptions, ProjectResult, RHO_AIR, SOLID, T_AMBIENT } from './types';
 
@@ -61,6 +61,7 @@ export class UnifiedFluid extends Fluid {
       },
       dt: 0,
       residue: new Float32Array(n),
+      restDensity: this.restDensity,
     };
   }
 
@@ -72,6 +73,7 @@ export class UnifiedFluid extends Fluid {
 
   clearParticles() {
     super.clearParticles();
+    resetPhase();
     this.resetGas();
   }
 

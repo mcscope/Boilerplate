@@ -139,6 +139,7 @@ export interface PhaseContext {
   pressure: Float32Array;
   /** Particle access (the FLIP particle store of src/sim/fluid.ts). */
   particles: {
+    /** Live: changes as particles are added or removed. */
     count: number;
     pos: Float32Array;
     vel: Float32Array;
@@ -146,12 +147,15 @@ export interface PhaseContext {
     temp: Float32Array;
     silt: Float32Array;
     add(x: number, y: number, vx: number, vy: number, kind: number, temp: number, silt: number): boolean;
+    /** Removes particle k by swapping the last particle into its slot. */
     remove(k: number): void;
   };
   /** Per-cell fractional accumulators owned by the phase module (allocated by it on first use is fine). */
   dt: number;
   /** Silt left behind by evaporated water, per cell (the sediment system collects it). */
   residue: Float32Array;
+  /** Rest particle density (particles per cell): one particle's mass is 1 / restDensity. */
+  restDensity: number;
 }
 
 export type PhaseChangeFn = (ctx: PhaseContext) => void;

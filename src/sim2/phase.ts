@@ -155,7 +155,7 @@ export function phaseChange(ctx: PhaseContext): void {
   const { vapor, pendingVapor, T } = gas;
   const pressure = ctx.pressure;
   const n = nx * ny;
-  const rest = (ctx as PhaseContext & { restDensity?: number }).restDensity ?? 1 / 0.36;
+  const rest = ctx.restDensity;
   const MP = 1 / rest;
   ensure(n, P.temp.length, vapor);
   const { accM, accH, dQ, nAll, nLive, nWater, sumTW, satL, start, fill, list, cellOf, dead, removeList } = st;
