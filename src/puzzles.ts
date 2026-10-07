@@ -167,8 +167,8 @@ export const PUZZLES: Level[] = [
     name: '4a. Separator',
     desc: 'Oil and water pour together from one spout. Get the oil into the left area and the water into the right one.',
     puzzle: {
-      goal: { zone: { i0: 14, j0: 62, i1: 32, j1: 85 }, kind: OIL, amount: 150, minPurity: 0.9, label: '150 oil on the left, 90% pure' },
-      also: [{ zone: { i0: 126, j0: 62, i1: 144, j1: 85 }, kind: WATER, amount: 250, minPurity: 0.95, label: '250 water on the right, 95% pure' }],
+      goal: { zone: { i0: 14, j0: 62, i1: 32, j1: 85 }, kind: OIL, amount: 150, minPurity: 0.85, label: '150 oil on the left, 85% pure' },
+      also: [{ zone: { i0: 126, j0: 62, i1: 144, j1: 85 }, kind: WATER, amount: 250, minPurity: 0.85, label: '250 water on the right, 85% pure' }],
       noBuild: [{ i0: 74, j0: 0, i1: 85, j1: 12 }], // around the pipes
       tools: { wall: Infinity },
       hint: 'Let the mixture settle in a tank first. Water is heavier, so it can be drawn off from the bottom while the oil leaves over the top.',
