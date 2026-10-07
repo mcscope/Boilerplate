@@ -132,3 +132,106 @@ aside section {
 .levels button small { display: block; font-size: 11px; color: var(--muted); }
 #goal .best { margin: 2px 0 6px; color: var(--brass); }
 .new-best { color: #7be08a; font-family: 'Silkscreen', monospace; font-size: 13px; animation: shake 0.35s steps(7) 2; display: inline-block; }
+
+/* ---- Pixel chrome ----
+ * Frames are tiny generated images (src/ui/pixel.ts) drawn with border-image and scaled up without smoothing, so
+ * panels, buttons and meters share the game's chunky pixel grid. One UI pixel = var(--px); frame borders are 3 of them.
+ */
+html, body { image-rendering: pixelated; }
+body { background: var(--dither-bg) 0 0 / calc(var(--px) * 4) calc(var(--px) * 4); }
+button, header, aside section, .meter, .solved, .stage, kbd { image-rendering: pixelated; }
+
+header {
+  border: none;
+  border-image: var(--frame-header) 3 fill / calc(var(--px) * 3) stretch;
+  background: none;
+  margin: calc(var(--px) * 4) calc(var(--px) * 8) 0;
+  padding: calc(var(--px) * 6) calc(var(--px) * 10);
+}
+
+aside section {
+  border: none;
+  box-shadow: calc(var(--px) * 2) calc(var(--px) * 2) 0 #05060a;
+  border-image: var(--frame-panel) 3 fill / calc(var(--px) * 3) stretch;
+  background: var(--dither-panel) 0 0 / calc(var(--px) * 4) calc(var(--px) * 4);
+  background-clip: padding-box;
+  padding: calc(var(--px) * 7);
+}
+
+/* The game canvas sits in a recessed pixel well. */
+.stage {
+  border-image: var(--frame-inset) 3 fill / calc(var(--px) * 3) stretch;
+  padding: calc(var(--px) * 3);
+  box-shadow: calc(var(--px) * 2) calc(var(--px) * 2) 0 #05060a;
+}
+#view { border: none; outline: none; }
+
+button {
+  border: none;
+  box-shadow: none;
+  background: none;
+  border-image: var(--frame-button) 3 fill / calc(var(--px) * 3) stretch;
+  padding: calc(var(--px) * 3) calc(var(--px) * 6);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--px);
+}
+button:hover { background: none; border-image-source: var(--frame-button-hover); }
+button:active, button.active {
+  background: none;
+  box-shadow: none;
+  border-image-source: var(--frame-button-down);
+  /* Pressed: content shifts one UI pixel down-right, like the bevel flipped. */
+  padding: calc(var(--px) * 4) calc(var(--px) * 5) calc(var(--px) * 2) calc(var(--px) * 7);
+}
+.group.physics button[data-physics="unified"].active { box-shadow: none; border-image-source: var(--frame-button-brass); }
+.levels button { display: flex; flex-direction: column; align-items: flex-start; }
+
+button .icon {
+  width: calc(var(--px) * 12);
+  height: calc(var(--px) * 12);
+  image-rendering: pixelated;
+  margin-right: calc(var(--px) * 2);
+  flex: none;
+}
+
+/* Key hints as tiny pixel keycaps. */
+kbd {
+  display: inline-block;
+  border-image: var(--frame-inset) 3 fill / calc(var(--px) * 2) stretch;
+  padding: 0 calc(var(--px) * 2);
+  line-height: 1.2;
+  margin-right: calc(var(--px) * 3);
+}
+
+.meter {
+  border: none;
+  border-image: var(--frame-inset) 3 fill / calc(var(--px) * 3) stretch;
+  height: calc(var(--px) * 9);
+  padding: calc(var(--px) * 2);
+  background: none;
+}
+/* Fill in chunky segments rather than a smooth bar. */
+.meter i {
+  background: repeating-linear-gradient(90deg, var(--accent) 0 calc(var(--px) * 3), #3a8ccc calc(var(--px) * 3) calc(var(--px) * 4));
+}
+
+.solved {
+  border: none;
+  border-image: var(--frame-solved) 3 fill / calc(var(--px) * 3) stretch;
+  background: none;
+  padding: calc(var(--px) * 4) calc(var(--px) * 6);
+}
+
+h2 {
+  /* Pixel underline: a 1-UI-pixel brass rule with a dark drop. */
+  padding-bottom: calc(var(--px) * 2);
+  box-shadow: 0 var(--px) 0 #6e5a34, 0 calc(var(--px) * 2) 0 #05060a;
+  margin-bottom: calc(var(--px) * 5);
+}
+
+/* Pixel scrollbars. */
+* { scrollbar-color: #4a5270 #0b0c12; }
+::-webkit-scrollbar { width: calc(var(--px) * 6); height: calc(var(--px) * 6); }
+::-webkit-scrollbar-track { background: var(--dither-bg) 0 0 / calc(var(--px) * 4) calc(var(--px) * 4); }
+::-webkit-scrollbar-thumb { border-image: var(--frame-button) 3 fill / calc(var(--px) * 2) stretch; }

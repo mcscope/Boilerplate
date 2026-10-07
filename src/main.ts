@@ -3,6 +3,7 @@ import { Renderer } from './render';
 import { OIL, WATER } from './sim/fluid';
 import { ICE, MUD, NONE, STONE, WAX_SOLID, WOOD } from './sim/thermo';
 import { PUZZLES } from './puzzles';
+import { installPixelUI, toolIcon } from './ui/pixel';
 import { H, LEVELS, Level, Physics, W, World } from './world';
 
 type Tool = 'wall' | 'erase' | 'water' | 'muddy' | 'oil' | 'mud' | 'wood' | 'ice' | 'wax' | 'steam' | 'fire' | 'chill' | 'sponge';
@@ -69,6 +70,7 @@ let view: View = 'normal';
 let mouse: { x: number; y: number } | null = null;
 let held: Tool | null = null;
 
+installPixelUI();
 document.querySelector('#app')!.innerHTML = `
   <header>
     <h1>PRESSURE LAB</h1>
@@ -97,7 +99,7 @@ document.querySelector('#app')!.innerHTML = `
       </section>
       <section>
         <h2>Tools</h2>
-        <div class="tools">${TOOLS.map(t => `<button data-tool="${t.id}"><kbd>${t.key}</kbd>${t.label}</button>`).join('')}</div>
+        <div class="tools">${TOOLS.map(t => `<button data-tool="${t.id}"><img class="icon" src="${toolIcon(t.id)}" alt=""><kbd>${t.key}</kbd>${t.label}</button>`).join('')}</div>
         <p id="tool-hint" class="muted"></p>
         <h2>Brush size</h2>
         <div class="tools">${BRUSHES.map((b, i) => `<button data-brush="${i}"><kbd>${i + 1}</kbd>${b * 2}px</button>`).join('')}</div>
@@ -267,7 +269,7 @@ function refreshButtons() {
     const left = !budget || !(t in budget) ? ''
       : !isFinite(budget[t]) ? ` · ${used[t] ?? 0} used`
       : timed ? ` · ${budget[t].toFixed(1)}s` : ` · ${budget[t]}`;
-    b.innerHTML = `<kbd>${TOOLS.find(x => x.id === t)!.key}</kbd>${label}${left}`;
+    b.innerHTML = `<img class="icon" src="${toolIcon(t)}" alt=""><kbd>${TOOLS.find(x => x.id === t)!.key}</kbd>${label}${left}`;
   }
   for (const b of document.querySelectorAll<HTMLElement>('[data-brush]')) b.classList.toggle('active', Number(b.dataset.brush) === brushIndex);
   for (const b of document.querySelectorAll<HTMLElement>('[data-mode]')) b.classList.toggle('active', b.dataset.mode === editMode);
