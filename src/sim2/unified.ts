@@ -7,7 +7,7 @@
 import { Fluid } from '../sim/fluid';
 import { gasTransport } from './gas';
 import { phaseChange, resetPhase } from './phase';
-import { project } from './solver';
+import { project, resetSolver } from './solver';
 import { GAS, GasState, LiquidFields, P0, PhaseContext, ProjectOptions, ProjectResult, RHO_AIR, SOLID, T_AMBIENT } from './types';
 
 export class UnifiedFluid extends Fluid {
@@ -16,7 +16,7 @@ export class UnifiedFluid extends Fluid {
   /** Solved absolute pressure per cell from the last projection (solid cells 0). Same units as P0. */
   readonly pressure: Float32Array;
   /** Solver settings; dt is filled in per substep. */
-  projectOptions: ProjectOptions = { dt: 0, openTop: true, maxIters: 200, tolerance: 1e-4, driftCompensation: 1 };
+  projectOptions: ProjectOptions = { dt: 0, openTop: true, maxIters: 100, tolerance: 1e-3, driftCompensation: 1 };
   lastProject: ProjectResult = { iterations: 0, residual: 0 };
 
   private readonly liquid: LiquidFields;
@@ -74,6 +74,7 @@ export class UnifiedFluid extends Fluid {
   clearParticles() {
     super.clearParticles();
     resetPhase();
+    resetSolver();
     this.resetGas();
   }
 

@@ -50,7 +50,11 @@ export interface GasState {
   vapor: Float32Array;
   /** Temperature, °C, for every cell (solid, liquid and gas). This is the same array as Thermo.T. */
   T: Float32Array;
-  /** Gas mass that couldn't be placed when a cell turned liquid, kept so it isn't lost (per cell, [air, vapor]). */
+  /**
+   * Gas mass held in a liquid cell, in the same mass-density units as air/vapor: gas that couldn't be placed
+   * when a cell turned liquid, and vapor from water boiling inside liquid. The solver treats pending vapor in a
+   * liquid cell as a volume source (it pushes the liquid aside); gas transport releases it once the cell is gas.
+   */
   pendingAir: Float32Array;
   pendingVapor: Float32Array;
 }
