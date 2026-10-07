@@ -361,7 +361,7 @@ export const PUZZLES: Level[] = [
     },
   },
   {
-    name: '7a. Small Casting',
+    name: '7a. Pawn',
     desc: 'A block of wax sits on a shelf. Melt it and cast a chess pawn: fill the marked shape with solid wax.',
     puzzle: {
       goal: {
