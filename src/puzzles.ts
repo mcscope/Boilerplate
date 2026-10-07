@@ -278,7 +278,8 @@ export const PUZZLES: Level[] = [
     desc: 'Six bundles of wood sit on ledges around the room. Burn every last one, with a single spark.',
     puzzle: {
       goal: { zone: { i0: 1, j0: 1, i1: 158, j1: 87 }, kind: WATER, amount: 176, burn: true, label: 'Burn all the wood (176 cells)' },
-      tools: { wall: Infinity, oil: Infinity, water: Infinity, fire: 0.4 },
+      tools: { wall: Infinity, oil: Infinity, water: Infinity, ice: Infinity, wax: Infinity, fire: 0.4 },
+      noBuild: [{ i0: 1, j0: 1, i1: 32, j1: 87 }, { i0: 126, j0: 1, i1: 158, j1: 87 }], // both sides, around the bundles
       hint: 'Burning oil spreads fire wherever it flows. And water hitting burning oil flashes to steam and throws the flaming oil around.',
     },
     build: b => {
