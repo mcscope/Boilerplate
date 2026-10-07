@@ -383,6 +383,21 @@ export class Renderer {
       const o = (y * W + x) * 4;
       out[o] += (c[0] - out[o]) * a; out[o + 1] += (c[1] - out[o + 1]) * a; out[o + 2] += (c[2] - out[o + 2]) * a;
     };
+    if (goal.shape) {
+      // Casting goal: tint the silhouette and dot its outline.
+      const inShape = (i: number, j: number) => goal.shape![j - z.j0]?.[i - z.i0] === '#';
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+        const i = Math.floor(x / CELL), j = Math.floor(y / CELL);
+        if (!inShape(i, j)) continue;
+        const lx = x - i * CELL, ly = y - j * CELL;
+        const edge = (lx === 0 && !inShape(i - 1, j)) || (lx === CELL - 1 && !inShape(i + 1, j))
+          || (ly === 0 && !inShape(i, j - 1)) || (ly === CELL - 1 && !inShape(i, j + 1));
+        if (edge) { if ((x + y) % 2 === 0) blend(x, y, col, 0.85); }
+        else blend(x, y, col, 0.1);
+      }
+      if (st.solved) this.sparkle(x0, y0, x1, y1, world, blend);
+      return;
+    }
     // Faint tint over the open part of the area, and a dotted border.
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
       if (world.fluid.s[Math.floor(x / CELL) + Math.floor(y / CELL) * NX] === 0) continue;
@@ -410,14 +425,16 @@ export class Renderer {
     flag(x0 - 2, -1);
     flag(x1 + 2, 1);
     // Sparkles once solved.
-    if (st.solved) {
-      const t = Math.floor(world.time * 8);
-      for (let k = 0; k < 14; k++) {
-        const sx = x0 + Math.floor(hash(k, t, 31) * (x1 - x0)), sy = y0 + Math.floor(hash(k, t, 32) * (y1 - y0));
-        blend(sx, sy, [255, 255, 220], 1);
-        blend(sx - 1, sy, [255, 240, 160], 0.6); blend(sx + 1, sy, [255, 240, 160], 0.6);
-        blend(sx, sy - 1, [255, 240, 160], 0.6); blend(sx, sy + 1, [255, 240, 160], 0.6);
-      }
+    if (st.solved) this.sparkle(x0, y0, x1, y1, world, blend);
+  }
+
+  private sparkle(x0: number, y0: number, x1: number, y1: number, world: World, blend: (x: number, y: number, c: RGB, a: number) => void) {
+    const t = Math.floor(world.time * 8);
+    for (let k = 0; k < 14; k++) {
+      const sx = x0 + Math.floor(hash(k, t, 31) * (x1 - x0)), sy = y0 + Math.floor(hash(k, t, 32) * (y1 - y0));
+      blend(sx, sy, [255, 255, 220], 1);
+      blend(sx - 1, sy, [255, 240, 160], 0.6); blend(sx + 1, sy, [255, 240, 160], 0.6);
+      blend(sx, sy - 1, [255, 240, 160], 0.6); blend(sx, sy + 1, [255, 240, 160], 0.6);
     }
   }
 

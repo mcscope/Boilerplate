@@ -20,8 +20,9 @@ export interface Emitter {
   w: number;
   speed: number; // px/s, downward
   on: boolean;
-  kind: number; // WATER or OIL
+  kind: number; // WATER, OIL or WAX
   silt: number; // 0..1 suspended silt (muddy water)
+  temp: number; // °C of the liquid as it leaves the nozzle
   acc: number;
 }
 
@@ -44,6 +45,12 @@ export interface Goal {
   minTemp?: number; // average temperature required, °C
   /** Fill-with-mud goal: `amount` is the number of cells in the zone that must be settled mud (kind is ignored). */
   mud?: boolean;
+  /**
+   * Casting goal: a silhouette ('#' = cell) placed at the zone's top-left corner. `amount` cells of it must be solid
+   * wax, with at most `maxExtra` cells of solid wax elsewhere in the zone.
+   */
+  shape?: string[];
+  maxExtra?: number;
   label: string;
 }
 
@@ -65,6 +72,7 @@ export function puzzleGoals(p: Puzzle): Goal[] {
 
 export interface GoalStatus {
   amount: number;
+  extra?: number; // casting goals: solid wax outside the shape
   purity: number;
   silt: number;
   temp: number;
@@ -113,8 +121,8 @@ export class Builder {
   heat(i0: number, j0: number, i1: number, j1: number, temp: number) {
     for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) this.world.thermo.T[i + j * NX] = temp;
   }
-  faucet(x: number, y: number, w = 6, speed = 150, on = true, kind = WATER, silt = 0) {
-    this.world.emitters.push({ x, y, w, speed, on, kind, silt, acc: 0 });
+  faucet(x: number, y: number, w = 6, speed = 150, on = true, kind = WATER, silt = 0, temp = 20) {
+    this.world.emitters.push({ x, y, w, speed, on, kind, silt, temp, acc: 0 });
   }
   drain(i0: number, j0: number, i1: number, j1: number) {
     this.world.drains.push({ i0, j0, i1, j1 });
@@ -257,7 +265,7 @@ export class World {
       e.acc += e.speed * dt;
       while (e.acc >= sp) {
         e.acc -= sp;
-        for (let x = e.x + f.radius; x < e.x + e.w; x += sp) f.addParticle(x + (Math.random() - 0.5) * 0.3, e.y + e.acc, 0, e.speed, e.kind, 20, e.silt);
+        for (let x = e.x + f.radius; x < e.x + e.w; x += sp) f.addParticle(x + (Math.random() - 0.5) * 0.3, e.y + e.acc, 0, e.speed, e.kind, e.temp, e.silt);
       }
     }
     const changes = this.thermo.solidChanges;
@@ -294,6 +302,17 @@ export class World {
 
   private measureGoal(goal: Goal, g: GoalStatus) {
     const f = this.fluid, z = goal.zone;
+    if (goal.shape) {
+      let inside = 0, extra = 0;
+      for (let j = z.j0; j <= z.j1; j++) for (let i = z.i0; i <= z.i1; i++) {
+        if (this.thermo.mat[i + j * NX] !== WAX_SOLID) continue;
+        if (goal.shape[j - z.j0]?.[i - z.i0] === '#') inside++; else extra++;
+      }
+      g.amount = inside;
+      g.extra = extra;
+      g.met = inside >= goal.amount && (goal.maxExtra === undefined || extra <= goal.maxExtra);
+      return;
+    }
     if (goal.mud) {
       let mud = 0;
       for (let j = z.j0; j <= z.j1; j++) for (let i = z.i0; i <= z.i1; i++) if (this.thermo.mat[i + j * NX] === MUD) mud++;

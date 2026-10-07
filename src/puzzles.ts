@@ -1,4 +1,4 @@
-import { OIL, WATER } from './sim/fluid';
+import { OIL, WATER, WAX } from './sim/fluid';
 import { Builder, Level } from './world';
 
 /**
@@ -247,5 +247,43 @@ export const PUZZLES: Level[] = [
       hint: 'Build a sealed pipe from the boiler to the bottom of the oil tank. Start it below the boiler\'s waterline, or the steam will just escape through it.',
     },
     build: b => { oilPress(b, { waterPipe: false, crack: false, riser: true }); b.drain(1, 88, 158, 88); },
+  },
+  {
+    name: '7. Casting',
+    desc: 'Molten wax pours from the left. Cast the statue: fill the marked shape with solid wax.',
+    puzzle: {
+      goal: {
+        zone: { i0: 71, j0: 69, i1: 88, j1: 85 }, kind: WAX, amount: 169, maxExtra: 25,
+        label: 'Fill the statue with solid wax (169 of 188 cells)',
+        // A small seated Buddha: top knot, head, shoulders, arms beside the body, hands in the lap, crossed legs.
+        shape: [
+        '.......####.......',
+        '......######......',
+        '.....########.....',
+        '.....########.....',
+        '.....########.....',
+        '......######......',
+        '.......####.......',
+        '...############...',
+        '..##############..',
+        '.###..######..###.',
+        '.###..######..###.',
+        '.###..######..###.',
+        '..##############..',
+        '.################.',
+        '##################',
+        '##################',
+        '.################.',
+        ],
+      },
+      tools: { wall: Infinity },
+      hint: 'Wax sets as it cools. Build a mold around the shape with a channel into the top, and leave the air a way out as the wax fills it.',
+      noBuild: [{ i0: 12, j0: 0, i1: 21, j1: 10 }], // around the pipe
+    },
+    build: b => {
+      b.solid(60, 86, 100, 87); // plinth under the statue
+      b.drain(1, 88, 158, 88);
+      b.faucet(30, 6, 4, 40, true, WAX, 0, 75);
+    },
   },
 ];
