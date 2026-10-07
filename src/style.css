@@ -127,3 +127,8 @@ aside section {
 .group.physics { align-items: center; }
 .group-label { font-family: 'Silkscreen', monospace; font-size: 12px; color: var(--brass); margin-right: 4px; }
 .group.physics button[data-physics="unified"].active { background: #4a3a1a; box-shadow: inset 2px 2px 0 #b08a3c, inset -2px -2px 0 #22180a; }
+
+/* Personal bests */
+.levels button small { display: block; font-size: 11px; color: var(--muted); }
+#goal .best { margin: 2px 0 6px; color: var(--brass); }
+.new-best { color: #7be08a; font-family: 'Silkscreen', monospace; font-size: 13px; animation: shake 0.35s steps(7) 2; display: inline-block; }

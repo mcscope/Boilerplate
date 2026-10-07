@@ -139,6 +139,39 @@ function shake(el: HTMLElement) {
   el.addEventListener('animationend', () => el.classList.remove('shake'), { once: true });
 }
 
+// ---- Personal bests, kept in this browser per physics engine (each metric tracked separately) ----
+
+interface Best { time: number; parts: number }
+type BestStore = Record<string, Record<string, Best>>;
+
+function loadBests(): BestStore {
+  try { return JSON.parse(localStorage.getItem('bests') ?? '{}') as BestStore; } catch { return {}; }
+}
+
+function bestFor(name: string): Best | undefined {
+  return loadBests()[world.physics]?.[name];
+}
+
+/** Materials placed this attempt (walls, wood…), the "parts" score. Fire isn't counted. */
+function partsUsed() {
+  return Object.entries(used).reduce((n, [k, v]) => (k === 'fire' || k === 'chill' ? n : n + v), 0);
+}
+
+/** Record a solve; returns which metrics are new personal bests. */
+function recordBest(name: string, time: number, parts: number) {
+  const store = loadBests();
+  const mine = (store[world.physics] ??= {});
+  const old = mine[name];
+  const newTime = !old || time < old.time, newParts = !old || parts < old.parts;
+  mine[name] = { time: newTime ? time : old.time, parts: newParts ? parts : old.parts };
+  try { localStorage.setItem('bests', JSON.stringify(store)); } catch { /* storage unavailable */ }
+  return { newTime, newParts, first: !old };
+}
+
+function bestLabel(b: Best) {
+  return `${b.time.toFixed(1)}s · ${b.parts} parts`;
+}
+
 function celebrate() {
   const z = ALL[levelIndex].puzzle!.goal.zone;
   const cx = ((z.i0 + z.i1 + 1) / 2) * 2, top = z.j0 * 2;
@@ -147,12 +180,11 @@ function celebrate() {
   fx.add(cx, top, 'steam', 10, 50, 1.2);
   const payloads = ['drop', 'spark', 'steam', 'drop', 'spark'] as const;
   payloads.forEach((p, n) => fx.rocket(cx + (n - 2) * 22, top, p, n * 0.18));
-  const tools = ALL[levelIndex].puzzle!.tools;
-  const summary = Object.keys(tools).map(k => {
-    const u = used[k] ?? 0;
-    return k === 'fire' || k === 'chill' ? `${u.toFixed(1)}s ${k}` : `${u} ${k}`;
-  }).join(' · ');
-  banner(`<div class="big">SOLVED!</div><div class="small">${world.time.toFixed(1)}s · ${summary}</div>`, 'solved-banner', 3200);
+  const time = world.time, parts = partsUsed();
+  const r = recordBest(ALL[levelIndex].name, time, parts);
+  const tag = (isNew: boolean) => (isNew && !r.first ? ' <span class="new-best">NEW BEST</span>' : '');
+  banner(`<div class="big">SOLVED!</div>
+    <div class="small">${time.toFixed(1)}s${tag(r.newTime)} · ${parts} parts${tag(r.newParts)}</div>`, 'solved-banner', 3600);
 }
 
 function loadLevel(i: number) {
@@ -181,6 +213,7 @@ function setPhysics(p: Physics) {
   if (p === world.physics) return;
   world = new World(p);
   loadLevel(levelIndex);
+  markSolved(); // bests are kept per engine
 }
 
 function allowed(t: Tool) {
@@ -199,6 +232,7 @@ function renderGoal() {
   const next = levelIndex + 1 < PUZZLES.length ? `<button id="next">Next puzzle →</button>` : '';
   const html = `
     <div class="goal-label">Goal: ${goal.label}</div>
+    ${(() => { const b = bestFor(ALL[levelIndex].name); return b ? `<div class="muted best">Your best: ${bestLabel(b)}</div>` : ''; })()}
     <div class="meter"><i style="width:${pct}%"></i></div>
     <div class="muted">${g.amount} / ${goal.amount}${checks.length ? ' · ' + checks.join(' · ') : ''}</div>
     ${g.solved ? `<div class="solved">Solved! ${next}</div>` : g.met ? `<div class="muted">Holding… ${g.held.toFixed(1)}s</div>` : ''}
@@ -368,16 +402,21 @@ function frame(now: number) {
       solvedShown = true;
       solved.add(ALL[levelIndex].name);
       try { localStorage.setItem('solved', JSON.stringify([...solved])); } catch { /* storage unavailable */ }
-      markSolved();
       celebrate();
+      markSolved();
     }
-    $('#stats').innerHTML = `<span>Water particles <b>${world.fluid.count}</b></span><span>Simulation <b>${simMs.toFixed(1)} ms</b></span><span>Frame rate <b>${Math.round(fps)}</b></span><span>Engine <b>${world.physics === 'unified' ? 'Unified (beta)' : 'Classic'}</b></span>`;
+    $('#stats').innerHTML = `<span>Water particles <b>${world.fluid.count}</b></span><span>Simulation <b>${simMs.toFixed(1)} ms</b></span><span>Frame rate <b>${Math.round(fps)}</b></span><span>Engine <b>${world.physics === 'unified' ? 'Unified' : 'Classic'}</b></span>`;
   }
   requestAnimationFrame(frame);
 }
 
 function markSolved() {
-  for (const b of document.querySelectorAll<HTMLElement>('[data-level]')) b.classList.toggle('done', solved.has(ALL[Number(b.dataset.level)].name));
+  for (const b of document.querySelectorAll<HTMLElement>('[data-level]')) {
+    const level = ALL[Number(b.dataset.level)];
+    b.classList.toggle('done', solved.has(level.name));
+    const best = level.puzzle ? bestFor(level.name) : undefined;
+    b.innerHTML = `${level.name}${best ? `<small>${bestLabel(best)}</small>` : ''}`;
+  }
 }
 
 // URL options for testing: ?level=N picks a level, ?warm=N simulates N frames before the first draw.
