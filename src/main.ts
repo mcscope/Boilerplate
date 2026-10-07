@@ -69,6 +69,10 @@ let paused = false;
 let view: View = 'normal';
 let mouse: { x: number; y: number } | null = null;
 let held: Tool | null = null;
+/** Draw with the opposite tool (Wall↔Erase etc.): right-drag on desktop, the Reverse toggle on touch. */
+let reverse = false;
+/** The pointer (mouse button, finger or pen) currently drawing; other touches are ignored. */
+let drawPointer: number | null = null;
 
 installPixelUI();
 document.querySelector('#app')!.innerHTML = `
@@ -97,9 +101,10 @@ document.querySelector('#app')!.innerHTML = `
         <p id="level-desc" class="muted"></p>
         <div id="goal"></div>
       </section>
-      <section>
+      <section id="tools-panel">
         <h2>Tools</h2>
-        <div class="tools">${TOOLS.map(t => `<button data-tool="${t.id}"><img class="icon" src="${toolIcon(t.id)}" alt=""><kbd>${t.key}</kbd>${t.label}</button>`).join('')}</div>
+        <button id="reverse" class="reverse" title="Draw with the opposite tool: Wall↔Erase, Water↔Sponge, Fire↔Chill (same as right-drag)">⇄ Reverse</button>
+        <div class="tools">${TOOLS.map(t => `<button data-tool="${t.id}" title="${t.label}"></button>`).join('')}</div>
         <p id="tool-hint" class="muted"></p>
         <h2>Brush size</h2>
         <div class="tools">${BRUSHES.map((b, i) => `<button data-brush="${i}"><kbd>${i + 1}</kbd>${b * 2}px</button>`).join('')}</div>
@@ -269,7 +274,7 @@ function refreshButtons() {
     const left = !budget || !(t in budget) ? ''
       : !isFinite(budget[t]) ? ` · ${used[t] ?? 0} used`
       : timed ? ` · ${budget[t].toFixed(1)}s` : ` · ${budget[t]}`;
-    b.innerHTML = `<img class="icon" src="${toolIcon(t)}" alt=""><kbd>${TOOLS.find(x => x.id === t)!.key}</kbd>${label}${left}`;
+    b.innerHTML = `<img class="icon" src="${toolIcon(t)}" alt=""><kbd>${TOOLS.find(x => x.id === t)!.key}</kbd><span class="lbl">${label}</span><span class="cnt">${left}</span>`;
   }
   for (const b of document.querySelectorAll<HTMLElement>('[data-brush]')) b.classList.toggle('active', Number(b.dataset.brush) === brushIndex);
   for (const b of document.querySelectorAll<HTMLElement>('[data-mode]')) b.classList.toggle('active', b.dataset.mode === editMode);
@@ -278,6 +283,7 @@ function refreshButtons() {
   const faucet = $('#faucet');
   faucet.textContent = world.emitters.length ? (faucetOn ? 'Faucet: on (G)' : 'Faucet: off (G)') : 'No faucet';
   faucet.toggleAttribute('disabled', !world.emitters.length || !!budget);
+  $('#reverse').classList.toggle('active', reverse);
   $('#pressure').classList.toggle('active', view === 'pressure');
   $('#temperature').classList.toggle('active', view === 'temperature');
   for (const b of document.querySelectorAll<HTMLElement>('[data-physics]')) b.classList.toggle('active', b.dataset.physics === world.physics);
@@ -309,6 +315,7 @@ document.addEventListener('click', ev => {
     try { localStorage.setItem('editMode', editMode); } catch { /* storage unavailable */ }
     markSolved();
   }
+  else if (el.id === 'reverse') reverse = !reverse;
   else if (el.id === 'hint') { hintShown = true; renderGoal(); }
   else if (el.id === 'pressure') view = view === 'pressure' ? 'normal' : 'pressure';
   else if (el.id === 'temperature') view = view === 'temperature' ? 'normal' : 'temperature';
@@ -334,21 +341,49 @@ window.addEventListener('keydown', ev => {
   refreshButtons();
 });
 
-function canvasPos(ev: MouseEvent) {
+/** Pointer position in world pixels, or null when it's off the canvas. */
+function canvasPos(ev: PointerEvent) {
   const r = canvas.getBoundingClientRect();
-  return { x: ((ev.clientX - r.left) / r.width) * W, y: ((ev.clientY - r.top) / r.height) * H };
+  const x = ((ev.clientX - r.left) / r.width) * W, y = ((ev.clientY - r.top) / r.height) * H;
+  return x < 0 || y < 0 || x >= W || y >= H ? null : { x, y };
 }
 
+// The game is sized to fit the viewport height as well as its column: CSS needs the height taken by everything else.
+function fitStage() {
+  const stage = $('.stage'), main = $('main');
+  const above = stage.getBoundingClientRect().top + window.scrollY;
+  const pad = stage.offsetHeight - canvas.offsetHeight + parseFloat(getComputedStyle(main).paddingBottom);
+  document.documentElement.style.setProperty('--chrome-h', `${Math.ceil(above + pad)}px`);
+}
+new ResizeObserver(fitStage).observe($('header'));
+window.addEventListener('resize', fitStage);
+fitStage();
+
+// Pointer events cover mouse, touch and pen. One pointer draws at a time; a second finger is ignored.
 canvas.addEventListener('contextmenu', ev => ev.preventDefault());
-canvas.addEventListener('mousedown', ev => {
-  held = ev.button === 2 ? OPPOSITE[tool] : tool;
+canvas.addEventListener('pointerdown', ev => {
+  if (drawPointer !== null) return;
+  if (ev.pointerType === 'mouse' && ev.button !== 0 && ev.button !== 2) return;
+  drawPointer = ev.pointerId;
+  canvas.setPointerCapture(ev.pointerId);
+  held = (ev.button === 2) !== reverse ? OPPOSITE[tool] : tool;
   if (!allowed(held)) held = budget && tool in SOLID_TOOL ? 'erase' : null;
   mouse = canvasPos(ev);
   ev.preventDefault();
 });
-canvas.addEventListener('mousemove', ev => (mouse = canvasPos(ev)));
-canvas.addEventListener('mouseleave', () => (mouse = null));
-window.addEventListener('mouseup', () => (held = null));
+canvas.addEventListener('pointermove', ev => {
+  // A hovering mouse shows the brush; otherwise only the drawing pointer counts.
+  if (drawPointer === null ? ev.pointerType === 'mouse' : ev.pointerId === drawPointer) mouse = canvasPos(ev);
+});
+const endDraw = (ev: PointerEvent) => {
+  if (ev.pointerId !== drawPointer) return;
+  drawPointer = null;
+  held = null;
+  if (ev.pointerType !== 'mouse') mouse = null; // no hover cursor left behind after a touch
+};
+canvas.addEventListener('pointerup', endDraw);
+canvas.addEventListener('pointercancel', endDraw);
+canvas.addEventListener('pointerleave', ev => { if (ev.pointerType === 'mouse' && drawPointer === null) mouse = null; });
 
 function applyBrush() {
   if (!held || !mouse) return;
