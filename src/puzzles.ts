@@ -403,7 +403,7 @@ export const PUZZLES: Level[] = [
     desc: 'A vat of mash (15% alcohol) stands over an empty firebox. Collect strong spirits in the marked area on the right.',
     puzzle: {
       goal: { zone: { i0: 120, j0: 66, i1: 140, j1: 85 }, kind: WATER, amount: 80, minAlcohol: 0.4, label: '80 spirits, at least 40% alcohol' },
-      tools: { wall: Infinity, wood: Infinity, fire: 2 },
+      tools: { wall: Infinity, wood: Infinity, ice: Infinity, fire: 2 },
       hint: 'Alcohol boils off more easily than water, so the first vapor is stronger than the mash, but only somewhat. Vapor that cools partway up a tall column drips back down, and what keeps climbing gets stronger each time.',
     },
     build: b => {
