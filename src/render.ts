@@ -1,9 +1,11 @@
 import { AIR } from './sim/fluid';
 import { ICE, MUD, WAX_SOLID, WOOD, WOOD_FUEL } from './sim/thermo';
-import { GAS, P0, RHO_AIR, SOLID, T_AMBIENT, VAPOR_MOLAR_RATIO } from './sim2/types';
+import { GAS, P0, RHO_AIR, SOLID, T_AMBIENT, VAPOR_MOLAR_RATIO, saturatedVapor } from './sim2/types';
 import { CELL, H, NX, NY, W, World } from './world';
 
 /** Vapor density of a cell of pure steam at 100 °C and atmospheric pressure: the "thick mist" reference. */
+/** Supersaturation that reads as fully opaque fog is VAPOR_REF * FOG_SCALE. */
+const FOG_SCALE = 0.3;
 const VAPOR_REF = RHO_AIR * VAPOR_MOLAR_RATIO * ((T_AMBIENT + 273.15) / (100 + 273.15));
 /** 4×4 Bayer matrix, for ordered-dither mist. */
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map(v => (v + 0.5) / 16);
@@ -453,11 +455,13 @@ export class Renderer {
    * drifting 4×4 ordered dither, so it reads as pixel-art haze like the classic steam puffs.
    */
   private drawVapor(world: World) {
-    const uf = world.unified!, f = world.fluid, out = this.img.data, vap = uf.gasState.vapor, ct = f.cellType;
+    const uf = world.unified!, f = world.fluid, out = this.img.data, vap = uf.gasState.vapor, T = uf.gasState.T, ct = f.cellType;
     const drift = Math.floor(world.time * 6);
+    // Water vapor itself is invisible (it's just humidity). What you see as steam is vapor the air can't hold at
+    // its temperature, condensing into tiny droplets: draw only the excess over saturation.
     const at = (i: number, j: number) => {
       const c = i + j * NX;
-      return ct[c] === GAS ? vap[c] : 0;
+      return ct[c] === GAS ? Math.max(0, vap[c] - saturatedVapor(T[c])) / FOG_SCALE : 0;
     };
     for (let j = 1; j < NY - 1; j++) for (let i = 1; i < NX - 1; i++) {
       const c = i + j * NX;
