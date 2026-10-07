@@ -57,23 +57,10 @@ const BURN_TIME = 3; // seconds one oil particle burns
 // Heat a burning liquid surface gets back from its own flame (most goes up into the air). Low enough that a
 // cold pool's conduction wins and the flame dies; a pool that's hot through (a heated pan) keeps burning.
 const BURN_HEAT = 250; // °C/s
-const BOIL_RATE = 2; // chance per second a water particle at boiling point turns to steam
-const BOIL_LATENT = 6; // °C the cell loses per particle boiled
-const CONDENSE_RATE = 1.5;
-const CONDENSE_LATENT = BOIL_LATENT; // condensing gives back exactly what boiling took
 const MELT_LATENT = 300; // heat (°C × cell) ice soaks up at 0° before it melts
 const WAX_LATENT = 150;
-const STEAM_GAS = 1.2;
-/** Volume (cells) that one particle of water flashing to steam *inside* liquid shoves aside: grease-fire bursts. */
-const FLASH_EXPANSION = 4;
-/** Water trapped under liquid superheats a little, then flashes to steam all at once. */
-const FLASH_POINT = BOIL + 5; // gas one steam particle adds to its pocket (1 = one cell of air at atmosphere)
-const MAX_STEAM = 8000;
-/**
- * Unified mode: vapor mass one "steam particle" (tool puff, drying wood) adds to the gas field, chosen so it
- * pressurizes a pocket about as much as a classic steam particle did (STEAM_GAS cells of air).
- */
-export const STEAM_VAPOR = STEAM_GAS * 0.02 * 0.622;
+/** Vapor mass (cell-mass units) one puff of steam adds to the gas field (the Steam tool releases ~one per px of radius). */
+export const STEAM_VAPOR = 1.2 * 0.02 * 0.622;
 const MAX_FLAMES = 4000;
 
 // Conductivity per material, and how much heat it takes to warm (air warms fast).
@@ -92,12 +79,7 @@ export class Thermo {
   setT: Float32Array;
   /** Incremented whenever ice forms or melts, so the renderer can redraw solids. */
   solidChanges = 0;
-  /**
-   * Set by World when the unified engine runs: boiling, steam particles and the classic gas hooks are off
-   * (the vapor field and its phase change take over), and steam goes into `vaporSink` instead.
-   */
-  unified = false;
-  /** Unified mode: adds vapor mass (cell-mass units) in a disk, e.g. UnifiedFluid.addVapor. */
+  /** Adds vapor mass (cell-mass units) in a disk: UnifiedFluid.addVapor, wired up by World. */
   vaporSink: ((x: number, y: number, r: number, amount: number, temp: number) => void) | null = null;
   /** Silt left behind by boiling muddy water, per cell; the sediment system collects it. */
   residue: Float32Array;
@@ -109,14 +91,6 @@ export class Thermo {
   soak: Float32Array;
   /** Water soaked into each wood cell, in particles. */
   wet: Float32Array;
-
-  // Steam particles
-  steamCount = 0;
-  sx = new Float32Array(MAX_STEAM);
-  sy = new Float32Array(MAX_STEAM);
-  svx = new Float32Array(MAX_STEAM);
-  svy = new Float32Array(MAX_STEAM);
-  sT = new Float32Array(MAX_STEAM);
 
   // Flames (visual only)
   flameCount = 0;
@@ -177,7 +151,6 @@ export class Thermo {
     this.burning.fill(0);
     this.soak.fill(0);
     this.wet.fill(0);
-    this.steamCount = 0;
     this.flameCount = 0;
   }
 
@@ -185,18 +158,6 @@ export class Thermo {
     const i = Math.floor(x / this.h), j = Math.floor(y / this.h);
     if (i < 0 || j < 0 || i >= this.nx || j >= this.ny) return -1;
     return i + j * this.nx;
-  }
-
-  addSteam(x: number, y: number, vx = 0, vy = 0, temp = BOIL + 5) {
-    if (this.unified) { this.vaporSink?.(x, y, this.h / 2, STEAM_VAPOR, temp); return; }
-    if (this.steamCount >= MAX_STEAM || this.fluid.solidAt(x, y)) return;
-    const k = this.steamCount++;
-    this.sx[k] = x; this.sy[k] = y; this.svx[k] = vx; this.svy[k] = vy; this.sT[k] = temp;
-  }
-
-  private removeSteam(k: number) {
-    const l = --this.steamCount;
-    this.sx[k] = this.sx[l]; this.sy[k] = this.sy[l]; this.svx[k] = this.svx[l]; this.svy[k] = this.svy[l]; this.sT[k] = this.sT[l];
   }
 
   addFlame(x: number, y: number) {
@@ -226,21 +187,7 @@ export class Thermo {
       if ((f.pos[2 * k] - x) ** 2 + (f.pos[2 * k + 1] - y) ** 2 > r * r) continue;
       f.temp[k] = toward(f.temp[k]);
     }
-    for (let k = 0; k < this.steamCount; k++) {
-      if ((this.sx[k] - x) ** 2 + (this.sy[k] - y) ** 2 <= r * r && !hot) this.sT[k] = toward(this.sT[k]);
-    }
     if (hot) for (let n = 0; n < 3; n++) this.addFlame(x + (Math.random() - 0.5) * r * 1.5, y + (Math.random() - 0.5) * r * 1.5);
-  }
-
-  /** Before the liquid step: tell the pressure system how much steam each air cell holds. */
-  preStep() {
-    if (this.unified) return;
-    const g = this.fluid.extraGas;
-    g.fill(0);
-    for (let k = 0; k < this.steamCount; k++) {
-      const c = this.cellAt(this.sx[k], this.sy[k]);
-      if (c >= 0) g[c] += STEAM_GAS;
-    }
   }
 
   step(dt: number) {
@@ -252,8 +199,7 @@ export class Thermo {
     this.burnWood(dt);
     this.conduct(dt);
     this.cellsToLiquid();
-    this.boilAndFreeze(dt);
-    if (!this.unified) this.moveSteam(dt);
+    this.boilAndFreeze();
     this.moveFlames(dt);
   }
 
@@ -333,9 +279,8 @@ export class Thermo {
         const q = Math.min(wet[c], WOOD_DRYING * dt);
         wet[c] -= q;
         T[c] = BOIL;
-        // Unified: the dried-off water's mass goes into the vapor field (one particle = 1 / restDensity of a cell).
-        if (this.unified) { if (open >= 0) this.vaporSink?.(((open % nx) + 0.5) * this.h, (Math.floor(open / nx) + 0.5) * this.h, this.h / 2, q / f.restDensity, BOIL + 5); }
-        else if (open >= 0 && Math.random() < q * 3) this.addSteam(((open % nx) + 0.5) * this.h, (Math.floor(open / nx) + 0.5) * this.h, 0, -20);
+        // The dried-off water's mass goes into the vapor field (one particle = 1 / restDensity of a cell).
+        if (open >= 0) this.vaporSink?.(((open % nx) + 0.5) * this.h, (Math.floor(open / nx) + 0.5) * this.h, this.h / 2, q / f.restDensity, BOIL + 5);
       }
 
       const fueled = soak[c] > 0.05;
@@ -413,16 +358,6 @@ export class Thermo {
     }
     T.set(Tn);
 
-    // Hot air rises: move heat from an air cell into the open cell above it.
-    // (Unified: hot gas really rises, carrying its temperature, so this shortcut is off.)
-    const lift = this.unified ? 0 : Math.min(0.45, 20 * dt);
-    if (lift > 0) for (let j = 2; j < ny - 1; j++) for (let i = 1; i < nx - 1; i++) {
-      const c = i + j * nx, up = c - nx;
-      if (ct[c] !== AIR || f.s[up] === 0) continue;
-      const d = T[c] - T[up];
-      if (d > 0) { const q = d * lift * 0.5; T[c] -= q; T[up] += q; }
-    }
-
     // Everything drifts back toward room temperature; open air fastest.
     for (let c = 0; c < nx * ny; c++) {
       let r = 0.003;
@@ -443,28 +378,8 @@ export class Thermo {
     }
   }
 
-  private boilAndFreeze(dt: number) {
+  private boilAndFreeze() {
     const f = this.fluid, { T, mat, nx, ny } = this;
-
-    // Boiling: water at 100° turns to steam, absorbing heat (so a pot boils steadily instead of all at once).
-    // Unified: the phase-change module boils water into the vapor field instead.
-    if (!this.unified) for (let k = f.count - 1; k >= 0; k--) {
-      if (f.kind[k] !== WATER || f.temp[k] < BOIL) continue;
-      const c = this.cellAt(f.pos[2 * k], f.pos[2 * k + 1]);
-      const submerged = c >= 0 && !this.hasAirNeighbor(c);
-      const flash = submerged && f.temp[k] >= FLASH_POINT;
-      if (flash || Math.random() < BOIL_RATE * dt * Math.min(4, 1 + (f.temp[k] - BOIL) / 20)) {
-        this.addSteam(f.pos[2 * k], f.pos[2 * k + 1], f.vel[2 * k] * 0.3, -20, BOIL + 5);
-        if (c >= 0) {
-          this.pending[c] -= BOIL_LATENT;
-          this.residue[c] += f.silt[k];
-          // Steam is huge compared with the water it came from. Boiling under liquid (water sunk beneath hot oil,
-          // or superheated water) bursts outward; boiling at an open surface just bubbles off.
-          if (submerged) f.expansion[c] += FLASH_EXPANSION * Math.min(3, 1 + (f.temp[k] - BOIL) / 50);
-        }
-        f.removeParticle(k);
-      } else if (!submerged) f.temp[k] = BOIL; // at an open surface extra heat goes into boiling; trapped water superheats
-    }
 
     // Solidifying: a cold cell that is mostly water becomes ice; mostly molten wax becomes solid wax.
     // Only that liquid is used up; anything else in the cell gets pushed out by the solver.
@@ -526,53 +441,6 @@ export class Thermo {
       changed = true;
     }
     if (changed) this.solidChanges++;
-  }
-
-  /** Steam rises (fast through water, as bubbles), drifts, warms what it touches, and condenses when cool. */
-  private moveSteam(dt: number) {
-    const f = this.fluid, g = f.params.gravity;
-    for (let k = this.steamCount - 1; k >= 0; k--) {
-      const c = this.cellAt(this.sx[k], this.sy[k]);
-      if (c < 0) { this.removeSteam(k); continue; }
-      const inLiquid = f.cellType[c] === FLUID;
-
-      // Exchange heat with the cell.
-      const d = this.T[c] - this.sT[k];
-      this.sT[k] += d * Math.min(1, (inLiquid ? 0.5 : 0.8) * dt);
-      this.pending[c] -= d * Math.min(1, 0.2 * dt);
-
-      // Condenses a few degrees below boiling (hysteresis), so steam in a hot sealed pocket persists and builds pressure.
-      const CONDENSE_AT = BOIL - 5;
-      if (this.sT[k] < CONDENSE_AT && Math.random() < CONDENSE_RATE * dt * (1 + (CONDENSE_AT - this.sT[k]) / 30)) {
-        if (f.addParticle(this.sx[k], this.sy[k], this.svx[k], this.svy[k], WATER, BOIL - 5)) this.pending[c] += CONDENSE_LATENT;
-        this.removeSteam(k);
-        continue;
-      }
-
-      const lift = inLiquid ? 1.2 * g : 0.3 * g;
-      this.svy[k] -= lift * dt;
-      this.svx[k] += (Math.random() - 0.5) * 300 * dt;
-      const drag = Math.exp(-(inLiquid ? 6 : 3) * dt);
-      this.svx[k] *= drag;
-      this.svy[k] *= drag;
-      const nx = this.sx[k] + this.svx[k] * dt, ny = this.sy[k] + this.svy[k] * dt;
-      if (!f.solidAt(nx, this.sy[k])) this.sx[k] = nx; else this.svx[k] *= -0.3;
-      if (!f.solidAt(this.sx[k], ny)) this.sy[k] = ny;
-      else if (this.svy[k] < 0) {
-        // Blocked from above: like a bubble under a tilted roof, slide toward whichever side the ceiling rises.
-        // Compare how high the ceiling is a little way to each side, and slide toward the higher side.
-        // (Checking for open space alone fails under a thin roof: there's open air above it on the low side.)
-        const x = this.sx[k], y = this.sy[k], hh = this.h / 2;
-        const ceiling = (xx: number) => { for (let s = 0; s <= 16; s++) if (f.solidAt(xx, y - s * hh)) return s; return 99; };
-        let dir = 0;
-        for (let d = 1; d <= 12 && dir === 0; d++) {
-          const l = ceiling(x - d * this.h), r = ceiling(x + d * this.h);
-          if (l !== r) dir = r > l ? 1 : -1;
-        }
-        if (dir !== 0) this.svx[k] += dir * Math.abs(this.svy[k]) * 0.9;
-        this.svy[k] *= -0.1;
-      } else this.svy[k] *= -0.3;
-    }
   }
 
   private moveFlames(dt: number) {

@@ -31,17 +31,9 @@ function particleDensity(kind: number, temp: number, silt: number) {
   return LIQUID_DENSITY[kind] * (1 - THERMAL_EXPANSION[kind] * (t - 20)) * (1 + SILT_DENSITY * silt);
 }
 
-/**
- * Air pressure, as pressure / water density in px²/s². Real air would be ~1e6 at this scale (10 m of water);
- * this softer value means atmosphere holds up a ~75 px water column, so gas effects are visible in a small world.
- */
-export const AIR_STIFFNESS = 60000;
-const MAX_GAUGE = 2;
 /** Surface tension: how strongly nearby particles of the same liquid pull together, and out to what distance (in radii). */
 const COHESION = 0.08;
 const COHESION_RANGE = 3.5;
-const BUBBLE_VENT_RATE = 6; // per second
-const MAX_EXPANSION = 10; // cells of volume one cell can push out per frame
 
 export interface FluidParams {
   gravity: number; // px/s²
@@ -61,7 +53,7 @@ export const DEFAULT_PARAMS: FluidParams = {
   substeps: 2,
 };
 
-export class Fluid {
+export abstract class Fluid {
   readonly nx: number;
   readonly ny: number;
   readonly h: number;
@@ -88,31 +80,16 @@ export class Fluid {
   /** Mass density of each liquid cell (water = 1). */
   cellRho: Float32Array;
   protected oilDensity: Float32Array;
-  /** Extra gas per cell that isn't air (steam), added to its region's pressure. Filled in by the world each step. */
-  extraGas: Float32Array;
-  /**
-   * Volume (in cells) to inject at each cell over the next step: water flashing to steam inside liquid
-   * takes up far more room than it did, and the pressure solve shoves the surrounding liquid out of the way.
-   */
-  expansion: Float32Array;
-  protected expandRate: Float32Array;
-
-  // Gas: every connected air region has a uniform pressure from its gas amount and volume (PV = nT).
-  /** Gas per cell; 1 = atmospheric density at temperature 1. */
-  gas: Float32Array;
+  // Air connectivity (the gas itself lives in UnifiedFluid).
   /** Air region id per cell (-1 if not air). */
   region: Int32Array;
-  /** Gauge pressure (relative to atmosphere, AIR_STIFFNESS units) per region id. */
-  regionGauge: number[] = [];
+  /** Per region id: whether it connects to the open top (atmosphere). */
   regionAtmosphere: boolean[] = [];
   /** If true, the air region touching the top row is open atmosphere, fixed at atmospheric pressure. */
   openTop = true;
   protected prevType: Int32Array;
   protected gasReady = false;
   protected queue: Int32Array;
-  protected fluidCells: Int32Array;
-  protected coef: Float32Array;
-  protected regionSize: Int32Array;
 
   // Particles
   readonly maxParticles: number;
@@ -139,8 +116,6 @@ export class Fluid {
   protected cellIds: Int32Array;
 
   params: FluidParams = { ...DEFAULT_PARAMS };
-  /** Classic-only buoyancy assist in integrate(); the unified engine gets buoyancy from its projection instead. */
-  protected buoyancyAssist = true;
 
   constructor(nx: number, ny: number, h: number, maxParticles: number) {
     this.nx = nx;
@@ -164,16 +139,9 @@ export class Fluid {
     this.massDensity = new Float32Array(n);
     this.cellRho = new Float32Array(n).fill(1);
     this.oilDensity = new Float32Array(n);
-    this.extraGas = new Float32Array(n);
-    this.expansion = new Float32Array(n);
-    this.expandRate = new Float32Array(n);
-    this.coef = new Float32Array(4 * n);
-    this.gas = new Float32Array(n);
     this.region = new Int32Array(n);
     this.prevType = new Int32Array(n);
     this.queue = new Int32Array(n);
-    this.fluidCells = new Int32Array(n);
-    this.regionSize = new Int32Array(n);
 
     this.maxParticles = maxParticles;
     this.radius = 0.3 * h;
@@ -261,33 +229,15 @@ export class Fluid {
     this.updateDensity();
   }
 
-  step(dt: number) {
-    const sdt = dt / this.params.substeps;
-    for (let k = 0; k < this.params.substeps; k++) {
-      this.integrate(sdt);
-      this.separate(this.params.separationIters);
-      this.transfer(true);
-      this.updateDensity();
-      this.updateGas(sdt);
-      this.solve(sdt);
-      this.transfer(false);
-    }
-    this.expansion.fill(0);
-    this.expandRate.fill(0);
-  }
+  /** Advance the simulation by dt seconds (UnifiedFluid). */
+  abstract step(dt: number): void;
 
   /** Gravity + movement, stepped in sub-cell increments so fast particles can't tunnel through thin walls. */
   protected integrate(dt: number) {
     const g = this.params.gravity, maxStep = 0.5 * this.h;
-    const { nx, ny, inv } = this;
     for (let k = 0; k < this.count; k++) {
       let x = this.pos[2 * k], y = this.pos[2 * k + 1];
-      // Buoyancy assist: a particle lighter than the liquid around it is pushed up (heavier: down).
-      // The pressure solve does this too, but only partly converges, so mixed cells would stay emulsified.
-      const c = clampi(Math.floor(x * inv), 0, nx - 1) + clampi(Math.floor(y * inv), 0, ny - 1) * nx;
-      const rhoP = particleDensity(this.kind[k], this.temp[k], this.silt[k]), rhoC = this.cellRho[c];
-      const buoy = this.buoyancyAssist && rhoC > 0 ? (rhoC - rhoP) / rhoC : 0;
-      let vx = this.vel[2 * k], vy = this.vel[2 * k + 1] + g * (1 - 1.5 * buoy) * dt;
+      let vx = this.vel[2 * k], vy = this.vel[2 * k + 1] + g * dt;
       const steps = Math.max(1, Math.ceil((Math.abs(vx) + Math.abs(vy)) * dt / maxStep));
       const sx = (vx * dt) / steps, sy = (vy * dt) / steps;
       let hitX = false, hitY = false;
@@ -471,93 +421,14 @@ export class Fluid {
     }
   }
 
-  /**
-   * Find air regions, carry gas along as liquid displaces it, and compute each region's pressure.
-   * Gas in cells that just filled with liquid moves to a neighboring air cell, so sealed pockets keep their gas
-   * and are compressed; air cells the liquid just left start empty, so a gap opening inside liquid is a vacuum.
-   */
-  protected updateGas(dt: number) {
-    const { nx, ny, cellType, gas, region } = this;
-    const n = nx * ny;
-
-    // Tiny enclosed voids are FLIP sampling noise, not real bubbles: treat them as liquid.
-    this.labelRegions();
-    const sizes = this.regionSize;
-    sizes.fill(0, 0, this.regionGauge.length);
-    for (let c = 0; c < n; c++) if (region[c] >= 0) sizes[region[c]]++;
-    for (let c = 0; c < n; c++) if (region[c] >= 0 && sizes[region[c]] <= 2 && !this.regionAtmosphere[region[c]]) cellType[c] = FLUID;
-
-    if (!this.gasReady) {
-      for (let c = 0; c < n; c++) gas[c] = cellType[c] === AIR ? 1 : 0;
-      this.prevType.set(cellType);
-      this.gasReady = true;
-    }
-
-    // Gas in a cell that liquid (or a wall) has filled moves to the nearest air within a few cells.
-    // If there's none (deep inside a splash) it's dropped: letting it wait inside the liquid would hand it to
-    // any gap that later opens there, and a fresh gap must be a vacuum.
-    // Only cells that were already air count: a gap that has just opened inside liquid stays a vacuum
-    // (that's what holds a siphon together).
-    for (let c = 0; c < n; c++) {
-      if (cellType[c] === AIR || gas[c] === 0) continue;
-      const ci = c % nx, cj = Math.floor(c / nx);
-      let moved = false;
-      for (let rad = 1; rad <= 3 && !moved; rad++) {
-        for (let dj = -rad; dj <= rad && !moved; dj++) for (let di = -rad; di <= rad; di++) {
-          if (Math.max(Math.abs(di), Math.abs(dj)) !== rad) continue;
-          const i = ci + di, j = cj + dj;
-          if (i < 0 || j < 0 || i >= nx || j >= ny) continue;
-          const o = i + j * nx;
-          if (cellType[o] === AIR && this.prevType[o] === AIR) { gas[o] += gas[c]; moved = true; break; }
-        }
-      }
-      gas[c] = 0;
-    }
-    this.prevType.set(cellType);
-
-    this.labelRegions();
-    const count = this.regionGauge.length;
-    const total = new Float64Array(count), extra = new Float64Array(count), volume = new Int32Array(count);
-    const liquidFaces = new Int32Array(count), solidFaces = new Int32Array(count);
-    for (let c = 0; c < n; c++) {
-      const r = region[c];
-      if (r < 0) continue;
-      total[r] += gas[c];
-      extra[r] += this.extraGas[c];
-      volume[r]++;
-      for (const o of [c - 1, c + 1, c - nx, c + nx]) {
-        if (cellType[o] === FLUID) liquidFaces[r]++;
-        else if (cellType[o] === SOLID) solidFaces[r]++;
-      }
-    }
-    // A pocket walled in mostly by liquid is a bubble: in reality it would rise and pop, so an over-pressured
-    // one vents toward atmospheric pressure. Pockets walled in mostly by solid (tanks, tubes, boilers) keep their
-    // pressure. Vacuums are never vented: liquid rushes in to close them, which is what holds a siphon together.
-    const vent = Math.min(1, BUBBLE_VENT_RATE * dt);
-    for (let r = 0; r < count; r++) {
-      if (this.regionAtmosphere[r] || liquidFaces[r] <= solidFaces[r] || total[r] <= volume[r]) continue;
-      total[r] += (volume[r] - total[r]) * vent;
-      if (total[r] < 0) total[r] = 0;
-    }
-    for (let r = 0; r < count; r++) {
-      if (this.regionAtmosphere[r]) { total[r] = volume[r]; this.regionGauge[r] = 0; }
-      // Capped so a burst of steam in a tiny pocket can't fling liquid across the map.
-      else this.regionGauge[r] = Math.min(MAX_GAUGE, (total[r] + extra[r]) / volume[r] - 1);
-    }
-    for (let c = 0; c < n; c++) if (region[c] >= 0) gas[c] = total[region[c]] / volume[region[c]];
-    void ny;
-  }
-
   /** 4-connected flood fill of air cells into regions. */
   protected labelRegions() {
     const { nx, ny, cellType, region, queue } = this;
     region.fill(-1);
-    this.regionGauge.length = 0;
     this.regionAtmosphere.length = 0;
     for (let start = 0; start < nx * ny; start++) {
       if (cellType[start] !== AIR || region[start] >= 0) continue;
-      const id = this.regionGauge.length;
-      this.regionGauge.push(0);
+      const id = this.regionAtmosphere.length;
       let atmosphere = false, head = 0, tail = 0;
       queue[tail++] = start;
       region[start] = id;
@@ -571,25 +442,6 @@ export class Fluid {
         if (c < nx * (ny - 1) && cellType[c + nx] === AIR && region[c + nx] < 0) { region[c + nx] = id; queue[tail++] = c + nx; }
       }
       this.regionAtmosphere.push(atmosphere);
-    }
-  }
-
-  /** Air pushes on liquid across every liquid/air face (ghost-pressure boundary condition). */
-  protected applyGasPressure(dt: number) {
-    const { nx, ny, cellType, region, u, v } = this;
-    const k = (dt / this.h) * AIR_STIFFNESS;
-    const gauge = (c: number) => this.regionGauge[region[c]];
-    for (let j = 1; j < ny - 1; j++) for (let i = 1; i < nx - 1; i++) {
-      const c = i + j * nx;
-      const t = cellType[c];
-      const tl = cellType[c - 1], tt = cellType[c - nx];
-      // Face between (i-1, j) and (i, j)
-      const rho = this.cellRho;
-      if (tl === AIR && t === FLUID) u[c] += (k * gauge(c - 1)) / rho[c];
-      else if (tl === FLUID && t === AIR) u[c] -= (k * gauge(c)) / rho[c - 1];
-      // Face between (i, j-1) and (i, j)
-      if (tt === AIR && t === FLUID) v[c] += (k * gauge(c - nx)) / rho[c];
-      else if (tt === FLUID && t === AIR) v[c] -= (k * gauge(c)) / rho[c - nx];
     }
   }
 
@@ -628,59 +480,6 @@ export class Fluid {
       this.cellOil[c] = oil;
       this.cellWax[c] = wax;
       this.cellRho[c] = d[c] > 0 ? md[c] / d[c] : 1;
-    }
-  }
-
-  /** Gauss-Seidel pressure projection; over-dense cells are pushed apart to counter volume drift. */
-  protected solve(dt: number) {
-    const { nx, ny, u, v, s } = this;
-    this.p.fill(0);
-    // FLIP adds only the change the projection makes, so remember the grid just before it.
-    this.prevU.set(u);
-    this.prevV.set(v);
-    this.applyGasPressure(dt);
-    const cp = this.h / dt;
-    const omega = this.params.overRelaxation;
-    // Only liquid cells take part, so gather them once instead of scanning the grid every iteration.
-    const cells = this.fluidCells;
-    let numCells = 0;
-    for (let j = 1; j < ny - 1; j++) for (let i = 1; i < nx - 1; i++) {
-      const c = i + j * nx;
-      if (this.cellType[c] === FLUID) cells[numCells++] = c;
-    }
-    // Variable density: each face responds to pressure in proportion to 1 / (density across it),
-    // so light liquid (oil) is pushed up through heavy liquid (water).
-    const rho = this.cellRho, ct = this.cellType, coef = this.coef;
-    const faceInv = (c: number, o: number) => (s[o] === 0 ? 0 : 2 / (rho[c] + (ct[o] === FLUID ? rho[o] : rho[c])));
-    for (let q = 0; q < numCells; q++) {
-      const c = cells[q];
-      coef[4 * q] = faceInv(c, c - 1);
-      coef[4 * q + 1] = faceInv(c, c + 1);
-      coef[4 * q + 2] = faceInv(c, c - nx);
-      coef[4 * q + 3] = faceInv(c, c + nx);
-    }
-    // Expansion sources: net outflow (px/s summed over faces) needed to make room for `expansion` cells of volume.
-    const expand = this.expandRate;
-    for (let q = 0; q < numCells; q++) {
-      const c = cells[q];
-      expand[c] = Math.min(MAX_EXPANSION, this.expansion[c]) * this.h / (dt * this.params.substeps);
-    }
-    for (let it = 0; it < this.params.pressureIters; it++) {
-      for (let q = 0; q < numCells; q++) {
-        const c = cells[q];
-        const bl = coef[4 * q], br = coef[4 * q + 1], bt = coef[4 * q + 2], bb = coef[4 * q + 3];
-        const sum = bl + br + bt + bb;
-        if (sum === 0) continue;
-        let div = u[c + 1] - u[c] + v[c + nx] - v[c] - expand[c];
-        const compression = this.density[c] - this.restDensity;
-        if (compression > 0) div -= compression;
-        const pc = (-div / sum) * omega;
-        this.p[c] += cp * pc;
-        u[c] -= bl * pc;
-        u[c + 1] += br * pc;
-        v[c] -= bt * pc;
-        v[c + nx] += bb * pc;
-      }
     }
   }
 }

@@ -1,4 +1,3 @@
-import { AIR } from './sim/fluid';
 import { HEATER, ICE, MUD, WAX_SOLID, WOOD, WOOD_FUEL } from './sim/thermo';
 import { GAS, P0, RHO_AIR, SOLID, T_AMBIENT, VAPOR_MOLAR_RATIO, saturatedVapor } from './sim2/types';
 import { CELL, Goal, GoalStatus, H, NX, NY, W, World, puzzleGoals } from './world';
@@ -257,17 +256,10 @@ export class Renderer {
     const f = world.fluid;
 
     const uf = world.unified;
-    if (opts.view === 'pressure' && !uf) {
-      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-        const c = Math.floor(x / CELL) + Math.floor(y / CELL) * NX;
-        if (f.cellType[c] !== AIR || f.region[c] < 0) continue;
-        pressureTint(out, (y * W + x) * 4, f.regionGauge[f.region[c]]);
-      }
-    }
 
     this.drawWater(world);
-    // Unified: the pressure field covers liquid too, so tint after the water (half strength over liquid).
-    if (opts.view === 'pressure' && uf) {
+    // The pressure field covers liquid too, so tint after the water (half strength over liquid).
+    if (opts.view === 'pressure') {
       const p = uf.pressure, ct = f.cellType;
       for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
         const c = Math.floor(x / CELL) + Math.floor(y / CELL) * NX;
@@ -517,7 +509,7 @@ export class Renderer {
     }
   }
 
-  /** Steam puffs blend toward white; flames go white-yellow → orange → red → smoke as they age. */
+  /** Burning oil glows; flames go white-yellow → orange → red → smoke as they age. */
   private drawSteamAndFire(world: World) {
     const th = world.thermo, out = this.img.data;
     const blend = (x: number, y: number, c: RGB, a: number) => {
@@ -527,13 +519,6 @@ export class Renderer {
       out[o + 1] += (c[1] - out[o + 1]) * a;
       out[o + 2] += (c[2] - out[o + 2]) * a;
     };
-    for (let k = 0; k < th.steamCount; k++) {
-      const x = Math.floor(th.sx[k]), y = Math.floor(th.sy[k]);
-      const hot = Math.min(1, Math.max(0, (th.sT[k] - 90) / 30));
-      blend(x, y, [236, 240, 248], 0.3 + 0.2 * hot);
-      blend(x + ((k & 1) ? 1 : -1), y, [210, 216, 230], 0.18);
-      blend(x, y - 1, [210, 216, 230], 0.12);
-    }
     const f = world.fluid;
     for (let k = 0; k < f.count; k++) {
       if (f.burn[k] > 0) blend(Math.floor(f.pos[2 * k]), Math.floor(f.pos[2 * k + 1]), [255, 130, 40], 0.7);

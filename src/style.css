@@ -123,10 +123,7 @@ aside section {
   80% { transform: translateX(2px); }
 }
 
-/* Physics engine toggle in the header. */
-.group.physics { align-items: center; }
 .group-label { font-family: 'Silkscreen', monospace; font-size: 12px; color: var(--brass); margin-right: 4px; }
-.group.physics button[data-physics="unified"].active { background: #4a3a1a; box-shadow: inset 2px 2px 0 #b08a3c, inset -2px -2px 0 #22180a; }
 
 /* Personal bests */
 .levels button small { display: block; font-size: 11px; color: var(--muted); }
@@ -184,7 +181,6 @@ button:active, button.active {
   /* Pressed: content shifts one UI pixel down-right, like the bevel flipped. */
   padding: calc(var(--px) * 4) calc(var(--px) * 5) calc(var(--px) * 2) calc(var(--px) * 7);
 }
-.group.physics button[data-physics="unified"].active { box-shadow: none; border-image-source: var(--frame-button-brass); }
 .levels button { display: flex; flex-direction: column; align-items: flex-start; }
 
 button .icon {
@@ -257,7 +253,6 @@ main { grid-template-columns: minmax(0, 1fr) 320px; }
 /* Touch: no hover states that stick after a tap, no keyboard hints, and the Reverse toggle. */
 @media (hover: none) {
   button:not(.active):hover { border-image-source: var(--frame-button); }
-  .group.physics button[data-physics="unified"].active:hover { border-image-source: var(--frame-button-brass); }
 }
 @media (pointer: coarse) {
   kbd { display: none; }

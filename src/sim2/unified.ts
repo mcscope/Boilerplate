@@ -1,8 +1,8 @@
 /**
  * Unified physics (design/unified-physics.md): one MAC grid where every open cell is liquid (FLIP particles) or
  * gas (Eulerian air + vapor), one variable-density pressure projection for both, and phase change as mass
- * transfer between particles and the vapor field. Reuses the classic Fluid's particle machinery and replaces
- * its step; none of the classic gas bookkeeping (regions, venting, expansion, extraGas) runs here.
+ * transfer between particles and the vapor field. Builds on Fluid's particle machinery (FLIP transfer,
+ * separation, cohesion, density).
  */
 import { Fluid } from '../sim/fluid';
 import { gasTransport } from './gas';
@@ -30,7 +30,6 @@ export class UnifiedFluid extends Fluid {
   constructor(nx: number, ny: number, h: number, maxParticles: number) {
     super(nx, ny, h, maxParticles);
     const n = nx * ny;
-    this.buoyancyAssist = false;
     this.gasState = {
       air: new Float32Array(n),
       vapor: new Float32Array(n),
@@ -194,7 +193,7 @@ export class UnifiedFluid extends Fluid {
       this.phase.dt = sdt;
       phaseChange(this.phase);
     }
-    // Air connectivity, for consumers that want "open air" (thermo's ambient cooling); gauges stay 0.
+    // Air connectivity, for consumers that want "open air" (thermo's ambient cooling).
     this.labelRegions();
   }
 }

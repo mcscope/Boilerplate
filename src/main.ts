@@ -4,7 +4,7 @@ import { OIL, WATER } from './sim/fluid';
 import { ICE, MUD, NONE, STONE, WAX_SOLID, WOOD } from './sim/thermo';
 import { PUZZLES } from './puzzles';
 import { brushIcon, installPixelUI, toolIcon } from './ui/pixel';
-import { Goal, GoalStatus, H, LEVELS, Level, Physics, W, World, puzzleGoals } from './world';
+import { Goal, GoalStatus, H, LEVELS, Level, W, World, puzzleGoals } from './world';
 
 type Tool = 'wall' | 'erase' | 'water' | 'muddy' | 'oil' | 'mud' | 'wood' | 'ice' | 'wax' | 'steam' | 'fire' | 'chill' | 'sponge';
 
@@ -38,14 +38,7 @@ const SOLID_TOOL: Partial<Record<Tool, number>> = { wall: STONE, erase: NONE, ic
 
 /** Puzzles first, then the free-play playgrounds. */
 const ALL: Level[] = [...PUZZLES, ...LEVELS];
-/** Physics engine: ?physics=unified|classic in the URL wins, then the saved choice, then unified (the default). */
-function initialPhysics(): Physics {
-  const q = new URLSearchParams(location.search).get('physics');
-  if (q === 'unified' || q === 'classic') return q;
-  try { if (localStorage.getItem('physics') === 'classic') return 'classic'; } catch { /* storage unavailable */ }
-  return 'unified';
-}
-let world = new World(initialPhysics());
+let world = new World();
 /**
  * Puzzle difficulty. Locked: build while paused; once the run starts, building is locked until Reset.
  * Live: edit while it runs.
@@ -81,11 +74,6 @@ document.querySelector('#app')!.innerHTML = `
       <button id="step" title="Advance one frame (.)">Step</button>
       <button id="reset" title="Reload the level (R)">Reset</button>
     </div>
-    <div class="group physics" role="group" aria-label="Physics engine">
-      <span class="group-label">Physics:</span>
-      <button data-physics="classic" title="The original engine: liquid particles plus air pockets with uniform pressure">Classic (legacy)</button>
-      <button data-physics="unified" title="Air and steam simulated as a real gas, one pressure solve for everything">Unified</button>
-    </div>
     <div id="stats"></div>
   </header>
   <main>
@@ -107,10 +95,6 @@ document.querySelector('#app')!.innerHTML = `
         <button data-act="menu">✕ Close</button>
         <button data-act="step">Step</button>
         <button data-act="fullscreen" class="fs">⛶ Fullscreen</button>
-        <span class="group physics">
-          <button data-physics="classic">Classic</button>
-          <button data-physics="unified">Unified</button>
-        </span>
       </section>
       <section id="level-info">
         <h2 id="level-name"></h2>
@@ -174,7 +158,7 @@ function shake(el: HTMLElement) {
   el.addEventListener('animationend', () => el.classList.remove('shake'), { once: true });
 }
 
-// ---- Personal bests, kept in this browser per physics engine (each metric tracked separately) ----
+// ---- Personal bests, kept in this browser per difficulty mode (each metric tracked separately) ----
 
 interface Best { time: number; parts: number }
 type BestStore = Record<string, Record<string, Best>>;
@@ -183,7 +167,8 @@ function loadBests(): BestStore {
   try { return JSON.parse(localStorage.getItem('bests') ?? '{}') as BestStore; } catch { return {}; }
 }
 
-function bestKey() { return `${world.physics}:${editMode}`; }
+// Stored under 'unified:<mode>' (the engine's name from when there were two), so earlier bests carry over.
+function bestKey() { return `unified:${editMode}`; }
 
 function bestFor(name: string): Best | undefined {
   return loadBests()[bestKey()]?.[name];
@@ -245,14 +230,6 @@ function loadLevel(i: number) {
   banner(`<div class="big">${level.name}</div>`, 'title-banner', 1700);
 }
 
-/** Switch engines: a fresh World, then reload the current level (brush, view and tool stay as they are). */
-function setPhysics(p: Physics) {
-  try { localStorage.setItem('physics', p); } catch { /* storage unavailable */ }
-  if (p === world.physics) return;
-  world = new World(p);
-  loadLevel(levelIndex);
-  markSolved(); // bests are kept per engine
-}
 
 function allowed(t: Tool) {
   return !budget || t in budget || (t === 'erase' && Object.keys(budget).some(k => k in SOLID_TOOL));
@@ -326,7 +303,6 @@ function refreshButtons() {
   faucet.toggleAttribute('disabled', !world.emitters.length || !!budget);
   $('#pressure').classList.toggle('active', view === 'pressure');
   $('#temperature').classList.toggle('active', view === 'temperature');
-  for (const b of document.querySelectorAll<HTMLElement>('[data-physics]')) b.classList.toggle('active', b.dataset.physics === world.physics);
   $('#tool-hint').textContent = TOOLS.find(t => t.id === tool)!.hint;
 }
 
@@ -375,7 +351,6 @@ document.addEventListener('click', ev => {
   else if (el.dataset.tool && allowed(el.dataset.tool as Tool)) tool = el.dataset.tool as Tool;
   else if (el.dataset.brush) brushIndex = Number(el.dataset.brush);
   else if (el.dataset.level) { loadLevel(Number(el.dataset.level)); document.body.classList.remove('drawer-open'); }
-  else if (el.dataset.physics) setPhysics(el.dataset.physics as Physics);
   refreshButtons();
 });
 
@@ -519,7 +494,7 @@ function frame(now: number) {
       celebrate();
       markSolved();
     }
-    $('#stats').innerHTML = `<span>Water particles <b>${world.fluid.count}</b></span><span>Simulation <b>${simMs.toFixed(1)} ms</b></span><span>Frame rate <b>${Math.round(fps)}</b></span><span>Engine <b>${world.physics === 'unified' ? 'Unified' : 'Classic'}</b></span>`;
+    $('#stats').innerHTML = `<span>Water particles <b>${world.fluid.count}</b></span><span>Simulation <b>${simMs.toFixed(1)} ms</b></span><span>Frame rate <b>${Math.round(fps)}</b></span>`;
   }
   requestAnimationFrame(frame);
 }

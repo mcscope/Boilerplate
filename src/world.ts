@@ -11,8 +11,6 @@ export const NX = W / CELL;
 export const NY = H / CELL;
 const MAX_PARTICLES = 40000;
 
-/** Which physics engine a World runs: the classic FLIP + gas-region model, or the unified air/liquid solver. */
-export type Physics = 'classic' | 'unified';
 
 export interface Emitter {
   x: number; // px, left edge of the nozzle
@@ -131,12 +129,11 @@ export class Builder {
 }
 
 export class World {
-  readonly physics: Physics;
   readonly fluid: Fluid;
   readonly thermo: Thermo;
   readonly sediment: Sediment;
-  /** The unified fluid (same object as `fluid`), or null in classic mode. */
-  readonly unified: UnifiedFluid | null;
+  /** The fluid, as its concrete type (same object as `fluid`). */
+  readonly unified: UnifiedFluid;
   emitters: Emitter[] = [];
   drains: Rect[] = [];
   solidVersion = 0;
@@ -154,16 +151,14 @@ export class World {
   /** Status of each goal, in `puzzleGoals` order. */
   goals: GoalStatus[] = [];
 
-  constructor(physics: Physics = 'unified') {
-    this.physics = physics;
-    const unified = physics === 'unified' ? new UnifiedFluid(NX, NY, CELL, MAX_PARTICLES) : null;
+  constructor() {
+    const unified = new UnifiedFluid(NX, NY, CELL, MAX_PARTICLES);
     this.unified = unified;
-    this.fluid = unified ?? new Fluid(NX, NY, CELL, MAX_PARTICLES);
+    this.fluid = unified;
     this.thermo = new Thermo(this.fluid);
     this.sediment = new Sediment(this.fluid, this.thermo);
-    if (unified) {
+    {
       unified.attachTemperature(this.thermo.T, this.thermo.residue);
-      this.thermo.unified = true;
       this.thermo.vaporSink = (x, y, r, amount, temp) => { unified.addVapor(x, y, r, amount, temp); };
     }
   }
@@ -244,15 +239,7 @@ export class World {
   }
 
   steam(x: number, y: number, r: number) {
-    if (this.unified) {
-      // Same amount as the classic tool's puffs, as vapor mass in the gas field.
-      this.unified.addVapor(x, y, r, Math.ceil(r) * STEAM_VAPOR, 115);
-      return;
-    }
-    for (let n = 0; n < Math.ceil(r); n++) {
-      const a = Math.random() * Math.PI * 2, d = Math.random() * r;
-      this.thermo.addSteam(x + Math.cos(a) * d, y + Math.sin(a) * d, 0, -10, 115);
-    }
+    this.unified.addVapor(x, y, r, Math.ceil(r) * STEAM_VAPOR, 115);
   }
 
   sponge(x: number, y: number, r: number) {
@@ -270,7 +257,6 @@ export class World {
       }
     }
     const changes = this.thermo.solidChanges;
-    this.thermo.preStep();
     f.step(dt);
     this.thermo.step(dt);
     this.sediment.step(dt);
