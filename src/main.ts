@@ -3,7 +3,7 @@ import { Renderer } from './render';
 import { OIL, WATER } from './sim/fluid';
 import { ICE, MUD, NONE, STONE, WAX_SOLID, WOOD } from './sim/thermo';
 import { PUZZLES } from './puzzles';
-import { H, LEVELS, Level, W, World } from './world';
+import { H, LEVELS, Level, Physics, W, World } from './world';
 
 type Tool = 'wall' | 'erase' | 'water' | 'muddy' | 'oil' | 'mud' | 'wood' | 'ice' | 'wax' | 'steam' | 'fire' | 'chill' | 'sponge';
 
@@ -37,7 +37,14 @@ const SOLID_TOOL: Partial<Record<Tool, number>> = { wall: STONE, erase: NONE, ic
 
 /** Puzzles first, then the free-play playgrounds. */
 const ALL: Level[] = [...PUZZLES, ...LEVELS];
-const world = new World();
+/** Physics engine: ?physics=unified|classic in the URL wins, then the saved choice, then classic. */
+function initialPhysics(): Physics {
+  const q = new URLSearchParams(location.search).get('physics');
+  if (q === 'unified' || q === 'classic') return q;
+  try { if (localStorage.getItem('physics') === 'unified') return 'unified'; } catch { /* storage unavailable */ }
+  return 'classic';
+}
+let world = new World(initialPhysics());
 let levelIndex = 0;
 /** Remaining tool budgets in a puzzle (cells, or seconds for fire / chill); null in free play. */
 let budget: Record<string, number> | null = null;
@@ -62,6 +69,11 @@ document.querySelector('#app')!.innerHTML = `
       <button id="pause"></button>
       <button id="step" title="Advance one frame (.)">Step</button>
       <button id="reset" title="Reload the level (R)">Reset</button>
+    </div>
+    <div class="group physics" role="group" aria-label="Physics engine">
+      <span class="group-label">Physics:</span>
+      <button data-physics="classic" title="The original engine: liquid particles plus air pockets with uniform pressure">Classic</button>
+      <button data-physics="unified" title="Experimental: air and steam simulated as a real gas, one pressure solve for everything">Unified (beta)</button>
     </div>
     <div id="stats"></div>
   </header>
@@ -163,6 +175,14 @@ function loadLevel(i: number) {
   banner(`<div class="big">${level.name}</div>`, 'title-banner', 1700);
 }
 
+/** Switch engines: a fresh World, then reload the current level (brush, view and tool stay as they are). */
+function setPhysics(p: Physics) {
+  try { localStorage.setItem('physics', p); } catch { /* storage unavailable */ }
+  if (p === world.physics) return;
+  world = new World(p);
+  loadLevel(levelIndex);
+}
+
 function allowed(t: Tool) {
   return !budget || t in budget || (t === 'erase' && Object.keys(budget).some(k => k in SOLID_TOOL));
 }
@@ -209,6 +229,7 @@ function refreshButtons() {
   faucet.toggleAttribute('disabled', !world.emitters.length || !!budget);
   $('#pressure').classList.toggle('active', view === 'pressure');
   $('#temperature').classList.toggle('active', view === 'temperature');
+  for (const b of document.querySelectorAll<HTMLElement>('[data-physics]')) b.classList.toggle('active', b.dataset.physics === world.physics);
   $('#tool-hint').textContent = TOOLS.find(t => t.id === tool)!.hint;
 }
 
@@ -238,6 +259,7 @@ document.addEventListener('click', ev => {
   else if (el.dataset.tool && allowed(el.dataset.tool as Tool)) tool = el.dataset.tool as Tool;
   else if (el.dataset.brush) brushIndex = Number(el.dataset.brush);
   else if (el.dataset.level) loadLevel(Number(el.dataset.level));
+  else if (el.dataset.physics) setPhysics(el.dataset.physics as Physics);
   refreshButtons();
 });
 
@@ -349,7 +371,7 @@ function frame(now: number) {
       markSolved();
       celebrate();
     }
-    $('#stats').innerHTML = `<span>Water particles <b>${world.fluid.count}</b></span><span>Simulation <b>${simMs.toFixed(1)} ms</b></span><span>Frame rate <b>${Math.round(fps)}</b></span>`;
+    $('#stats').innerHTML = `<span>Water particles <b>${world.fluid.count}</b></span><span>Simulation <b>${simMs.toFixed(1)} ms</b></span><span>Frame rate <b>${Math.round(fps)}</b></span><span>Engine <b>${world.physics === 'unified' ? 'Unified (beta)' : 'Classic'}</b></span>`;
   }
   requestAnimationFrame(frame);
 }

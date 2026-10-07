@@ -1,6 +1,19 @@
 import { AIR } from './sim/fluid';
 import { ICE, MUD, WAX_SOLID, WOOD, WOOD_FUEL } from './sim/thermo';
+import { GAS, P0, RHO_AIR, SOLID, T_AMBIENT, VAPOR_MOLAR_RATIO } from './sim2/types';
 import { CELL, H, NX, NY, W, World } from './world';
+
+/** Vapor density of a cell of pure steam at 100 °C and atmospheric pressure: the "thick mist" reference. */
+const VAPOR_REF = RHO_AIR * VAPOR_MOLAR_RATIO * ((T_AMBIENT + 273.15) / (100 + 273.15));
+/** 4×4 Bayer matrix, for ordered-dither mist. */
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map(v => (v + 0.5) / 16);
+
+function pressureTint(out: Uint8ClampedArray, o: number, g: number, scale = 1) {
+  if (Math.abs(g) < 0.01) return;
+  const a = Math.min(0.6, Math.abs(g) * 1.5) * scale;
+  const tint: RGB = g > 0 ? [255, 120, 60] : [80, 140, 255];
+  for (let k = 0; k < 3; k++) out[o + k] = out[o + k] * (1 - a) + tint[k] * a;
+}
 
 type RGB = [number, number, number];
 
@@ -235,21 +248,27 @@ export class Renderer {
     out.set(this.staticLayer);
     const f = world.fluid;
 
-    if (opts.view === 'pressure') {
+    const uf = world.unified;
+    if (opts.view === 'pressure' && !uf) {
       for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
         const c = Math.floor(x / CELL) + Math.floor(y / CELL) * NX;
         if (f.cellType[c] !== AIR || f.region[c] < 0) continue;
-        const g = f.regionGauge[f.region[c]];
-        if (Math.abs(g) < 0.01) continue;
-        const a = Math.min(0.6, Math.abs(g) * 1.5);
-        const tint: RGB = g > 0 ? [255, 120, 60] : [80, 140, 255];
-        const o = (y * W + x) * 4;
-        for (let k = 0; k < 3; k++) out[o + k] = out[o + k] * (1 - a) + tint[k] * a;
+        pressureTint(out, (y * W + x) * 4, f.regionGauge[f.region[c]]);
       }
     }
 
     this.drawWater(world);
+    // Unified: the pressure field covers liquid too, so tint after the water (half strength over liquid).
+    if (opts.view === 'pressure' && uf) {
+      const p = uf.pressure, ct = f.cellType;
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        const c = Math.floor(x / CELL) + Math.floor(y / CELL) * NX;
+        if (ct[c] === SOLID || f.s[c] === 0) continue;
+        pressureTint(out, (y * W + x) * 4, p[c] / P0 - 1, ct[c] === GAS ? 1 : 0.5);
+      }
+    }
     this.drawBurningWood(world);
+    if (uf) this.drawVapor(world);
     this.drawSteamAndFire(world);
 
     if (opts.view === 'temperature') {
@@ -424,6 +443,43 @@ export class Renderer {
           const ember: RGB = n < 0.25 ? [255, 210, 90] : n < 0.6 ? [240, 110, 30] : [150, 40, 20];
           const a = 0.35 + 0.5 * charred * n;
           for (let k = 0; k < 3; k++) out[o + k] = out[o + k] * (1 - a) + ember[k] * a;
+        }
+      }
+    }
+  }
+
+  /**
+   * Unified: water vapor as soft white mist. Density is sampled bilinearly per pixel and quantized with a
+   * drifting 4×4 ordered dither, so it reads as pixel-art haze like the classic steam puffs.
+   */
+  private drawVapor(world: World) {
+    const uf = world.unified!, f = world.fluid, out = this.img.data, vap = uf.gasState.vapor, ct = f.cellType;
+    const drift = Math.floor(world.time * 6);
+    const at = (i: number, j: number) => {
+      const c = i + j * NX;
+      return ct[c] === GAS ? vap[c] : 0;
+    };
+    for (let j = 1; j < NY - 1; j++) for (let i = 1; i < NX - 1; i++) {
+      const c = i + j * NX;
+      if (ct[c] !== GAS) continue;
+      // Skip cells with no vapor nearby (the common case) without per-pixel work.
+      if (vap[c] + vap[c - 1] + vap[c + 1] + vap[c - NX] + vap[c + NX] < 0.02 * VAPOR_REF) continue;
+      for (let y = j * CELL; y < (j + 1) * CELL; y++) {
+        const fy = (y + 0.5) / CELL - 0.5, j0 = Math.floor(fy), ty = fy - j0;
+        for (let x = i * CELL; x < (i + 1) * CELL; x++) {
+          const fx = (x + 0.5) / CELL - 0.5, i0 = Math.floor(fx), tx = fx - i0;
+          const v = (1 - tx) * (1 - ty) * at(i0, j0) + tx * (1 - ty) * at(i0 + 1, j0) + tx * ty * at(i0 + 1, j0 + 1) + (1 - tx) * ty * at(i0, j0 + 1);
+          const a = Math.min(1, Math.sqrt(Math.max(0, v) / VAPOR_REF));
+          if (a < 0.04) continue;
+          const b = BAYER[((y + drift) & 3) * 4 + ((x + (drift >> 2)) & 3)];
+          const o = (y * W + x) * 4;
+          let col: RGB, alpha: number;
+          if (b < a * 0.6) { col = [236, 240, 248]; alpha = 0.3 + 0.25 * a; }
+          else if (b < a * 1.4) { col = [210, 216, 230]; alpha = 0.12 + 0.12 * a; }
+          else continue;
+          out[o] += (col[0] - out[o]) * alpha;
+          out[o + 1] += (col[1] - out[o + 1]) * alpha;
+          out[o + 2] += (col[2] - out[o + 2]) * alpha;
         }
       }
     }

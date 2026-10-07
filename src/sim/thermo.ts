@@ -65,6 +65,11 @@ const FLASH_EXPANSION = 4;
 /** Water trapped under liquid superheats a little, then flashes to steam all at once. */
 const FLASH_POINT = BOIL + 5; // gas one steam particle adds to its pocket (1 = one cell of air at atmosphere)
 const MAX_STEAM = 8000;
+/**
+ * Unified mode: vapor mass one "steam particle" (tool puff, drying wood) adds to the gas field, chosen so it
+ * pressurizes a pocket about as much as a classic steam particle did (STEAM_GAS cells of air).
+ */
+export const STEAM_VAPOR = STEAM_GAS * 0.02 * 0.622;
 const MAX_FLAMES = 4000;
 
 // Conductivity per material, and how much heat it takes to warm (air warms fast).
@@ -81,6 +86,13 @@ export class Thermo {
   mat: Uint8Array;
   /** Incremented whenever ice forms or melts, so the renderer can redraw solids. */
   solidChanges = 0;
+  /**
+   * Set by World when the unified engine runs: boiling, steam particles and the classic gas hooks are off
+   * (the vapor field and its phase change take over), and steam goes into `vaporSink` instead.
+   */
+  unified = false;
+  /** Unified mode: adds vapor mass (cell-mass units) in a disk, e.g. UnifiedFluid.addVapor. */
+  vaporSink: ((x: number, y: number, r: number, amount: number, temp: number) => void) | null = null;
   /** Silt left behind by boiling muddy water, per cell; the sediment system collects it. */
   residue: Float32Array;
   /** Seconds of burning left in each wood cell. */
@@ -168,6 +180,7 @@ export class Thermo {
   }
 
   addSteam(x: number, y: number, vx = 0, vy = 0, temp = BOIL + 5) {
+    if (this.unified) { this.vaporSink?.(x, y, this.h / 2, STEAM_VAPOR, temp); return; }
     if (this.steamCount >= MAX_STEAM || this.fluid.solidAt(x, y)) return;
     const k = this.steamCount++;
     this.sx[k] = x; this.sy[k] = y; this.svx[k] = vx; this.svy[k] = vy; this.sT[k] = temp;
@@ -213,6 +226,7 @@ export class Thermo {
 
   /** Before the liquid step: tell the pressure system how much steam each air cell holds. */
   preStep() {
+    if (this.unified) return;
     const g = this.fluid.extraGas;
     g.fill(0);
     for (let k = 0; k < this.steamCount; k++) {
@@ -231,7 +245,7 @@ export class Thermo {
     this.conduct(dt);
     this.cellsToLiquid();
     this.boilAndFreeze(dt);
-    this.moveSteam(dt);
+    if (!this.unified) this.moveSteam(dt);
     this.moveFlames(dt);
   }
 
@@ -311,7 +325,9 @@ export class Thermo {
         const q = Math.min(wet[c], WOOD_DRYING * dt);
         wet[c] -= q;
         T[c] = BOIL;
-        if (open >= 0 && Math.random() < q * 3) this.addSteam(((open % nx) + 0.5) * this.h, (Math.floor(open / nx) + 0.5) * this.h, 0, -20);
+        // Unified: the dried-off water's mass goes into the vapor field (one particle = 1 / restDensity of a cell).
+        if (this.unified) { if (open >= 0) this.vaporSink?.(((open % nx) + 0.5) * this.h, (Math.floor(open / nx) + 0.5) * this.h, this.h / 2, q / f.restDensity, BOIL + 5); }
+        else if (open >= 0 && Math.random() < q * 3) this.addSteam(((open % nx) + 0.5) * this.h, (Math.floor(open / nx) + 0.5) * this.h, 0, -20);
       }
 
       const fueled = soak[c] > 0.05;
@@ -389,8 +405,9 @@ export class Thermo {
     T.set(Tn);
 
     // Hot air rises: move heat from an air cell into the open cell above it.
-    const lift = Math.min(0.45, 20 * dt);
-    for (let j = 2; j < ny - 1; j++) for (let i = 1; i < nx - 1; i++) {
+    // (Unified: hot gas really rises, carrying its temperature, so this shortcut is off.)
+    const lift = this.unified ? 0 : Math.min(0.45, 20 * dt);
+    if (lift > 0) for (let j = 2; j < ny - 1; j++) for (let i = 1; i < nx - 1; i++) {
       const c = i + j * nx, up = c - nx;
       if (ct[c] !== AIR || f.s[up] === 0) continue;
       const d = T[c] - T[up];
@@ -420,7 +437,8 @@ export class Thermo {
     const f = this.fluid, { T, mat, nx, ny } = this;
 
     // Boiling: water at 100° turns to steam, absorbing heat (so a pot boils steadily instead of all at once).
-    for (let k = f.count - 1; k >= 0; k--) {
+    // Unified: the phase-change module boils water into the vapor field instead.
+    if (!this.unified) for (let k = f.count - 1; k >= 0; k--) {
       if (f.kind[k] !== WATER || f.temp[k] < BOIL) continue;
       const c = this.cellAt(f.pos[2 * k], f.pos[2 * k + 1]);
       const submerged = c >= 0 && !this.hasAirNeighbor(c);

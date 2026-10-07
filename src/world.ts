@@ -1,6 +1,7 @@
 import { Fluid, OIL, WATER, WAX } from './sim/fluid';
 import { CELL_OF_MUD, Sediment } from './sim/sediment';
-import { AMBIENT, ICE, MUD, NONE, STONE, Thermo, WAX_SOLID, WOOD, WOOD_FUEL } from './sim/thermo';
+import { AMBIENT, ICE, MUD, NONE, STEAM_VAPOR, STONE, Thermo, WAX_SOLID, WOOD, WOOD_FUEL } from './sim/thermo';
+import { UnifiedFluid } from './sim2/unified';
 
 /** Screen is W×H pixels; the simulation grid uses CELL×CELL pixel cells. */
 export const W = 320;
@@ -9,6 +10,9 @@ export const CELL = 2;
 export const NX = W / CELL;
 export const NY = H / CELL;
 const MAX_PARTICLES = 40000;
+
+/** Which physics engine a World runs: the classic FLIP + gas-region model, or the unified air/liquid solver. */
+export type Physics = 'classic' | 'unified';
 
 export interface Emitter {
   x: number; // px, left edge of the nozzle
@@ -101,9 +105,12 @@ export class Builder {
 }
 
 export class World {
-  fluid = new Fluid(NX, NY, CELL, MAX_PARTICLES);
-  thermo = new Thermo(this.fluid);
-  sediment = new Sediment(this.fluid, this.thermo);
+  readonly physics: Physics;
+  readonly fluid: Fluid;
+  readonly thermo: Thermo;
+  readonly sediment: Sediment;
+  /** The unified fluid (same object as `fluid`), or null in classic mode. */
+  readonly unified: UnifiedFluid | null;
   emitters: Emitter[] = [];
   drains: Rect[] = [];
   solidVersion = 0;
@@ -117,6 +124,20 @@ export class World {
    */
   playerMat = new Uint8Array(NX * NY);
   goal: GoalStatus = { amount: 0, purity: 0, silt: 0, temp: 0, met: false, held: 0, solved: false };
+
+  constructor(physics: Physics = 'classic') {
+    this.physics = physics;
+    const unified = physics === 'unified' ? new UnifiedFluid(NX, NY, CELL, MAX_PARTICLES) : null;
+    this.unified = unified;
+    this.fluid = unified ?? new Fluid(NX, NY, CELL, MAX_PARTICLES);
+    this.thermo = new Thermo(this.fluid);
+    this.sediment = new Sediment(this.fluid, this.thermo);
+    if (unified) {
+      unified.attachTemperature(this.thermo.T, this.thermo.residue);
+      this.thermo.unified = true;
+      this.thermo.vaporSink = (x, y, r, amount, temp) => { unified.addVapor(x, y, r, amount, temp); };
+    }
+  }
 
   load(level: Level) {
     this.level = level;
@@ -192,6 +213,11 @@ export class World {
   }
 
   steam(x: number, y: number, r: number) {
+    if (this.unified) {
+      // Same amount as the classic tool's puffs, as vapor mass in the gas field.
+      this.unified.addVapor(x, y, r, Math.ceil(r) * STEAM_VAPOR, 115);
+      return;
+    }
     for (let n = 0; n < Math.ceil(r); n++) {
       const a = Math.random() * Math.PI * 2, d = Math.random() * r;
       this.thermo.addSteam(x + Math.cos(a) * d, y + Math.sin(a) * d, 0, -10, 115);

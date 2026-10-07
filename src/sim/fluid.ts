@@ -135,6 +135,8 @@ export class Fluid {
   protected cellIds: Int32Array;
 
   params: FluidParams = { ...DEFAULT_PARAMS };
+  /** Classic-only buoyancy assist in integrate(); the unified engine gets buoyancy from its projection instead. */
+  protected buoyancyAssist = true;
 
   constructor(nx: number, ny: number, h: number, maxParticles: number) {
     this.nx = nx;
@@ -280,7 +282,7 @@ export class Fluid {
       // The pressure solve does this too, but only partly converges, so mixed cells would stay emulsified.
       const c = clampi(Math.floor(x * inv), 0, nx - 1) + clampi(Math.floor(y * inv), 0, ny - 1) * nx;
       const rhoP = particleDensity(this.kind[k], this.temp[k], this.silt[k]), rhoC = this.cellRho[c];
-      const buoy = rhoC > 0 ? (rhoC - rhoP) / rhoC : 0;
+      const buoy = this.buoyancyAssist && rhoC > 0 ? (rhoC - rhoP) / rhoC : 0;
       let vx = this.vel[2 * k], vy = this.vel[2 * k + 1] + g * (1 - 1.5 * buoy) * dt;
       const steps = Math.max(1, Math.ceil((Math.abs(vx) + Math.abs(vy)) * dt / maxStep));
       const sx = (vx * dt) / steps, sy = (vy * dt) / steps;

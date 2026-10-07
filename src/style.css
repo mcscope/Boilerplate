@@ -122,3 +122,8 @@ aside section {
   60% { transform: translateX(-3px); }
   80% { transform: translateX(2px); }
 }
+
+/* Physics engine toggle in the header. */
+.group.physics { align-items: center; }
+.group-label { font-family: 'Silkscreen', monospace; font-size: 12px; color: var(--brass); margin-right: 4px; }
+.group.physics button[data-physics="unified"].active { background: #4a3a1a; box-shadow: inset 2px 2px 0 #b08a3c, inset -2px -2px 0 #22180a; }
