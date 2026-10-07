@@ -399,7 +399,7 @@ export const PUZZLES: Level[] = [
     },
   },
   {
-    name: '10. Column Still',
+    name: '9. Column Still',
     desc: 'A vat of mash (15% alcohol) stands over an empty firebox. Collect strong spirits in the marked area on the right.',
     puzzle: {
       goal: { zone: { i0: 120, j0: 66, i1: 140, j1: 85 }, kind: WATER, amount: 80, minAlcohol: 0.4, label: '80 spirits, at least 40% alcohol' },

@@ -34,8 +34,7 @@ The order goes from things you can see directly toward hidden quantities:
 6. **Combustion:** what burns.
 7. **Steam pressure:** what heat can push.
 8. **Solidification:** what liquids become when they cool.
-9. **Latent heat:** what melting costs.
-10. **Mixtures (advanced):** pulling apart liquids that mix.
+9. **Mixtures (advanced):** pulling apart liquids that mix.
 
 ## The chapters
 
@@ -82,9 +81,9 @@ Molten wax flows while hot and sets where it cools, so molds shape it.
 - **8. Casting:** melt a wax block with a wood fire and cast a small statue.
 - **8a. Pawn:** hot water melts a wax block; cast a pawn, keeping the (heavier) water out of the mold.
 
-### 10. Mixtures (advanced)
+### 9. Mixtures (advanced)
 Liquids that mix can still be pulled apart by how readily each one boils. Builds on heat (ch. 5).
-- **10. Column Still:** concentrate alcohol out of a mash. A pot still only gets partway; a tall column where vapor partly condenses and drips back makes it stronger with each stage. Alcohol vapor is flammable.
+- **9. Column Still:** concentrate alcohol out of a mash. A pot still only gets partway; a tall column where vapor partly condenses and drips back makes it stronger with each stage. Alcohol vapor is flammable.
 
 ---
 
@@ -112,7 +111,7 @@ Ideas not built yet, filed where they would teach.
   - **Wax Seal:** melt wax above a crack so it runs in and seals it.
   - **Hourglass:** a wax plug as a timer.
   - **Floating Lid:** molten wax sets into an insulating lid on hot water.
-- **Ch. 9, Latent heat**
+- **Latent heat (no chapter yet)**
   - **Thaw:** melt an ice plug with heat routed from far away.
 - **Dropped:** anything needing Chill (Freeze the Leak, Ice Sculpture, Cold Snap); Meltwater (cut 2026-10-07 after playtest).
 
