@@ -395,7 +395,7 @@ export const PUZZLES: Level[] = [
       b.wax(20, 40, 40, 55);   // the wax block
       b.solid(64, 86, 98, 87); // plinth under the statue
       b.drain(1, 88, 158, 88);
-      b.faucet(30, 6, 4, 50, true, WATER, 0, 90);
+      b.faucet(30, 6, 4, 50, true, WATER, 0, 99);
     },
   },
   {
