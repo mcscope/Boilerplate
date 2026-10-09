@@ -116,7 +116,16 @@ function satA(T: number): number {
   return tab[i] + (tab[i + 1] - tab[i]) * t;
 }
 
-// Bubble point of a water–alcohol liquid: the temperature where (1 - x)·psat(T) + x·psatAlc(T) = p.
+/**
+ * Water and alcohol don't mix ideally: alcohol escapes from water far more readily than Raoult's law says (a 15%
+ * mash gives off vapor around 50% alcohol, not 25%), and the mix has an azeotrope near 96% by mass. Van Laar
+ * activity coefficients for ethanol (A) and water (W) at alcohol mole fraction x.
+ */
+const VL_A = 1.6798, VL_W = 0.9227;
+function gammaA(x: number): number { const d = VL_A * x + VL_W * (1 - x); return Math.exp(VL_A * ((VL_W * (1 - x)) / d) ** 2); }
+function gammaW(x: number): number { const d = VL_A * x + VL_W * (1 - x); return Math.exp(VL_W * ((VL_A * x) / d) ** 2); }
+
+// Bubble point of a water–alcohol liquid: the temperature where (1 - x)·γW·psat(T) + x·γA·psatAlc(T) = p.
 // Tabulated over alcohol mole fraction x (0..1) and log pressure (P_MIN..P_MAX ×P0), bilinear lookup.
 const BX = 64, BP = 64;
 let bubbleTable: Float64Array | null = null;
@@ -128,7 +137,7 @@ function bubbleT(p: number, x: number): number {
       let lo = -60, hi = 450;
       for (let it = 0; it < 48; it++) {
         const m = 0.5 * (lo + hi);
-        if ((1 - xx) * psat(m) + xx * psatAlc(m) > pp) hi = m; else lo = m;
+        if ((1 - xx) * gammaW(xx) * psat(m) + xx * gammaA(xx) * psatAlc(m) > pp) hi = m; else lo = m;
       }
       bubbleTable[a * (BP + 1) + b] = 0.5 * (lo + hi);
     }
@@ -142,7 +151,7 @@ function bubbleT(p: number, x: number): number {
 
 /** Mass fraction of alcohol in the vapor over a liquid with alcohol mole fraction x at temperature T, pressure p. */
 function vaporAlcFraction(x: number, T: number, p: number): number {
-  const ye = Math.min(1, (x * psatAlc(T)) / p); // mole fraction (Raoult)
+  const ye = Math.min(1, (x * gammaA(x) * psatAlc(T)) / p); // mole fraction (modified Raoult)
   return (ye * 46.07) / (ye * 46.07 + (1 - ye) * 18.02);
 }
 
@@ -202,14 +211,22 @@ export function phaseBalance(): Float64Array { return st.accM; }
 /** Add dm (> 0 owed by liquid, < 0 credited to liquid) at temperature T to cell c's accumulator, conserving energy. */
 /**
  * Condensation of a water–alcohol vapor with nothing to condense onto but itself (a cold wall, fog). It condenses
- * once Σ pᵢ/psatᵢ > 1 (its dew point), as a liquid in equilibrium with it: mole fractions ∝ pᵢ/psatᵢ (Raoult), so
- * the condensate is richer in water than the vapor and what stays behind is richer in alcohol. Returns the water
- * and alcohol masses that condense, moving Σ pᵢ/psatᵢ a fraction `rate` of the way back to 1.
+ * once Σ pᵢ/(γᵢ·psatᵢ) > 1 (its dew point), as a liquid in equilibrium with it: mole fractions ∝ pᵢ/(γᵢ·psatᵢ),
+ * so the condensate is richer in water than the vapor and what stays behind is richer in alcohol. Returns the
+ * water and alcohol masses that condense, moving that sum a fraction `rate` of the way back to 1.
  */
 function dew(vap: number, av: number, sv: number, sa: number, rate: number): [number, number] {
-  const rw = vap / sv, ra = av > 0 ? av / sa : 0, r = rw + ra;
+  const pw = vap / sv, pa = av > 0 ? av / sa : 0;
+  if (pw + pa <= 1) return [0, 0];
+  // the condensate's composition depends on its own activity coefficients: a few fixed-point passes
+  let xa = pa / (pw + pa), rw = pw, ra = pa;
+  for (let it = 0; it < 4 && pa > 0; it++) {
+    rw = pw / gammaW(xa); ra = pa / gammaA(xa);
+    xa = ra / (rw + ra);
+  }
+  const r = rw + ra;
   if (r <= 1) return [0, 0];
-  const xw = rw / r, xa = ra / r; // condensate mole fractions
+  const xw = 1 - xa; // condensate mole fractions
   const n = (rate * (r - 1)) / ((xw * 18.02) / sv + (xa * 46.07) / sa);
   return [Math.min(vap, n * xw * 18.02), Math.min(av, n * xa * 46.07)];
 }
@@ -312,7 +329,7 @@ export function phaseChange(ctx: PhaseContext): void {
     let sum = 0, w = 0;
     for (let q = start[c]; q < start[c + 1]; q++) { const k = list[q]; if (kind[k] === WATER) { sum += temp[k]; w++; } }
     nWater[c] = w;
-    if (w > 0) { sumTW[c] = sum / w; satL[c] = satV(sum / w) * (1 - (meanAlc[c] > 0 ? alcMoleFraction(meanAlc[c]) : 0)); }
+    if (w > 0) { sumTW[c] = sum / w; const x = meanAlc[c] > 0 ? alcMoleFraction(meanAlc[c]) : 0; satL[c] = satV(sum / w) * (1 - x) * (x > 0 ? gammaW(x) : 1); }
   }
 
   // ---- 2–4. exchange in gas cells ----
@@ -340,7 +357,7 @@ export function phaseChange(ctx: PhaseContext): void {
       // Raoult: each species heads for its own partial saturation over this liquid.
       const dm = aEvap * (satL[o] - vap); // > 0 evaporation, < 0 condensation onto the liquid
       const xe = meanAlc[o] > 0 ? alcMoleFraction(meanAlc[o]) : 0;
-      const dmA = xe > 0 || av > 0 ? aEvap * (satA(Tl) * xe - av) : 0;
+      const dmA = xe > 0 || av > 0 ? aEvap * (satA(Tl) * xe * gammaA(xe) - av) : 0;
       if (dm === 0 && dmA === 0) continue;
       vap += dm;
       av += dmA;
